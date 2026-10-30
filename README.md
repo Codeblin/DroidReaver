@@ -1,7 +1,7 @@
 # DroidReaver
 
 [![CI](https://github.com/Codeblin/droidreaver/actions/workflows/ci.yml/badge.svg)](https://github.com/Codeblin/droidreaver/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-0.1.0-blue)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.2.1-blue)](CHANGELOG.md)
 [![Security policy](https://img.shields.io/badge/security-policy-green)](SECURITY.md)
 
 > Previously known as DexMachina. See [MIGRATING.md](MIGRATING.md) if you are

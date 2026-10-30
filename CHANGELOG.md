@@ -4,6 +4,8 @@ All notable changes to DroidReaver are documented here. This project follows Sem
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-10-30
+
 ### Changed
 
 - Rename the project and maintained package to **DroidReaver** (`droidreaver` CLI/package).
