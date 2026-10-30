@@ -12,9 +12,9 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-from pindroid.config import get_pinned_version, pin_tool, save_config
-from pindroid.registry import FRIDA_PIN_GROUP, get_pin_group, get_tool
-from pindroid.utils import (
+from droidreaver.config import get_pinned_version, pin_tool, save_config
+from droidreaver.registry import FRIDA_PIN_GROUP, get_pin_group, get_tool
+from droidreaver.utils import (
     compare_versions,
     detect_platform,
     fetch_pypi_latest_version,
@@ -63,7 +63,7 @@ class PinGroupSyncError(Exception):
 
 
 def venvs_root() -> Path:
-    return Path.home() / ".pindroid" / "venvs"
+    return Path.home() / ".droidreaver" / "venvs"
 
 
 def frida_venv_path(frida_version: str) -> Path:
@@ -170,7 +170,7 @@ def resolve_frida_target(config: dict, explicit: str | None = None) -> str:
             hint = f" Latest on PyPI: {latest}." if latest else ""
             raise PinGroupSyncError(
                 f"Frida {target} is not published on PyPI.{hint}\n"
-                "Run: pindroid use latest",
+                "Run: droidreaver use latest",
                 target_frida=target,
             )
         return target
@@ -223,9 +223,9 @@ def ensure_frida_venv(frida_version: str, *, force: bool = False) -> Path:
         hint = f" Latest on PyPI: {latest}." if latest else ""
         raise PinGroupSyncError(
             f"Frida {frida_version} is not published on PyPI.{hint}\n"
-            "Run: pindroid use latest\n"
-            "If this persists, clear stale cache: delete %USERPROFILE%\\.pindroid\\cache "
-            "(or ~/.pindroid/cache on Unix).",
+            "Run: droidreaver use latest\n"
+            "If this persists, clear stale cache: delete %USERPROFILE%\\.droidreaver\\cache "
+            "(or ~/.droidreaver/cache on Unix).",
             target_frida=frida_version,
         )
 
@@ -280,7 +280,7 @@ def env_shell_hint(config: dict) -> str:
     """Printable instructions to activate the active frida venv."""
     ver = get_active_frida_version(config)
     if not ver:
-        return "No active frida version. Run: pindroid use <version>  (e.g. pindroid use 17.11.0)"
+        return "No active frida version. Run: droidreaver use <version>  (e.g. droidreaver use 17.11.0)"
 
     venv = frida_venv_path(ver)
     bindir = _venv_bin_dir(venv)
@@ -299,7 +299,7 @@ def env_shell_hint(config: dict) -> str:
 
 def print_versions_report(config: dict) -> None:
     """Show frida versions: active, pinned, venvs on disk, group state, PyPI recent."""
-    from pindroid.installer import get_latest_version, get_tool_version
+    from droidreaver.installer import get_latest_version, get_tool_version
 
     pinned = get_pinned_version(config, "frida")
     active = get_active_frida_version(config)
@@ -312,8 +312,8 @@ def print_versions_report(config: dict) -> None:
         "Only the [bold]frida[/] pip package uses the runtime version (e.g. 17.11.0).\n"
         "[bold]frida-tools[/] and [bold]objection[/] have their own package versions but "
         "must be compatible with the frida runtime you select.\n\n"
-        "Think [bold]nvm[/]: [cyan]pindroid use 17.11.0[/] creates an isolated venv and "
-        "sets it active. Switch anytime with [cyan]pindroid use 16.2.0[/].",
+        "Think [bold]nvm[/]: [cyan]droidreaver use 17.11.0[/] creates an isolated venv and "
+        "sets it active. Switch anytime with [cyan]droidreaver use 16.2.0[/].",
         title="How versions work",
         border_style="#3a6652",
     ))
@@ -351,11 +351,11 @@ def print_versions_report(config: dict) -> None:
     console.print(table)
     console.print()
     console.print("[dim]Commands:[/]")
-    console.print("  [cyan]pindroid use 17.11.0[/]     switch/create venv (like nvm use)")
-    console.print("  [cyan]pindroid use latest[/]     use latest frida release")
-    console.print("  [cyan]pindroid pin frida X[/]    lock config without reinstall")
-    console.print("  [cyan]pindroid env[/]            print PATH to activate active venv")
-    console.print("  [cyan]pindroid sync frida[/]     align global pip install to target")
+    console.print("  [cyan]droidreaver use 17.11.0[/]     switch/create venv (like nvm use)")
+    console.print("  [cyan]droidreaver use latest[/]     use latest frida release")
+    console.print("  [cyan]droidreaver pin frida X[/]    lock config without reinstall")
+    console.print("  [cyan]droidreaver env[/]            print PATH to activate active venv")
+    console.print("  [cyan]droidreaver sync frida[/]     align global pip install to target")
 
 
 def print_sync_error(err: PinGroupSyncError) -> None:
@@ -378,12 +378,12 @@ def print_sync_error(err: PinGroupSyncError) -> None:
     lines.extend([
         "",
         "[bold]What to do:[/]",
-        "  1. [cyan]pindroid use {ver}[/]  — nvm-style venv (recommended)".format(
+        "  1. [cyan]droidreaver use {ver}[/]  — nvm-style venv (recommended)".format(
             ver=err.target_frida
         ),
-        "  2. [cyan]pindroid sync frida[/]  — fix global pip install",
-        "  3. [cyan]pindroid versions frida[/]  — inspect group + available releases",
-        "  4. [cyan]pindroid pin frida {ver}[/]  — lock version, then use/sync".format(
+        "  2. [cyan]droidreaver sync frida[/]  — fix global pip install",
+        "  3. [cyan]droidreaver versions frida[/]  — inspect group + available releases",
+        "  4. [cyan]droidreaver pin frida {ver}[/]  — lock version, then use/sync".format(
             ver=err.target_frida
         ),
     ])

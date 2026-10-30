@@ -2,12 +2,12 @@
 
 from click.testing import CliRunner
 
-from pindroid.cli import main
-from pindroid.help_fmt import PinDroidGroup
+from droidreaver.cli import main
+from droidreaver.help_fmt import DroidReaverGroup
 
 
 def test_main_uses_categorized_group():
-    assert isinstance(main, PinDroidGroup)
+    assert isinstance(main, DroidReaverGroup)
 
 
 def test_help_has_sections():
@@ -30,9 +30,9 @@ def test_run_passes_flags_to_tool():
     with runner.isolated_filesystem():
         from unittest.mock import patch
 
-        with patch("pindroid.cli.ensure_config"), patch(
-            "pindroid.cli.load_config", return_value={}
-        ), patch("pindroid.cli.run_invocation", return_value=0) as run:
+        with patch("droidreaver.cli.ensure_config"), patch(
+            "droidreaver.cli.load_config", return_value={}
+        ), patch("droidreaver.cli.run_invocation", return_value=0) as run:
             result = runner.invoke(main, ["run", "frida", "--version"])
 
     assert result.exit_code == 0

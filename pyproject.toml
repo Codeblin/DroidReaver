@@ -3,13 +3,13 @@ requires = ["setuptools>=61", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "pindroid"
+name = "droidreaver"
 version = "0.2.0"
 description = "Android pentesting tool manager — install, update, and version-lock your toolkit"
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
-authors = [{ name = "PinDroid Contributors" }]
+authors = [{ name = "DroidReaver Contributors" }]
 keywords = ["android", "pentesting", "frida", "security"]
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -38,18 +38,18 @@ dev = [
 ]
 
 [project.scripts]
-pindroid = "pindroid.cli:main"
+droidreaver = "droidreaver.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/Codeblin/pindroid"
-Repository = "https://github.com/Codeblin/pindroid"
-Issues = "https://github.com/Codeblin/pindroid/issues"
-Documentation = "https://github.com/Codeblin/pindroid#readme"
-Changelog = "https://github.com/Codeblin/pindroid/blob/main/CHANGELOG.md"
-"Security Policy" = "https://github.com/Codeblin/pindroid/security/policy"
+Homepage = "https://github.com/Codeblin/droidreaver"
+Repository = "https://github.com/Codeblin/droidreaver"
+Issues = "https://github.com/Codeblin/droidreaver/issues"
+Documentation = "https://github.com/Codeblin/droidreaver#readme"
+Changelog = "https://github.com/Codeblin/droidreaver/blob/main/CHANGELOG.md"
+"Security Policy" = "https://github.com/Codeblin/droidreaver/security/policy"
 
 [tool.coverage.run]
-source = ["pindroid"]
+source = ["droidreaver"]
 branch = true
 
 [tool.coverage.report]
@@ -58,10 +58,10 @@ skip_covered = false
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["pindroid*"]
+include = ["droidreaver*"]
 
 [tool.setuptools.package-data]
-pindroid = ["../pindroid.toml.default", "scripts/*.js"]
+droidreaver = ["../droidreaver.toml.default", "scripts/*.js"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -20,10 +20,10 @@ def _project_version() -> str:
 
 
 def _package_version() -> str:
-    text = (ROOT / "pindroid" / "__init__.py").read_text(encoding="utf-8")
+    text = (ROOT / "droidreaver" / "__init__.py").read_text(encoding="utf-8")
     match = re.search(r'^__version__\s*=\s*"([^"]+)"', text, flags=re.MULTILINE)
     if not match:
-        raise SystemExit("Could not find pindroid.__version__")
+        raise SystemExit("Could not find droidreaver.__version__")
     return match.group(1)
 
 
@@ -39,7 +39,7 @@ def verify(tag: str) -> None:
     if project_version != version:
         errors.append(f"pyproject.toml version is {project_version}, expected {version}")
     if package_version != version:
-        errors.append(f"pindroid.__version__ is {package_version}, expected {version}")
+        errors.append(f"droidreaver.__version__ is {package_version}, expected {version}")
     if f"## [{version}]" not in changelog:
         errors.append(f"CHANGELOG.md has no section for [{version}]")
 

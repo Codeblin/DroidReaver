@@ -1,4 +1,4 @@
-"""Deprecated DexMachina CLI wrapper for PinDroid."""
+"""Deprecated DexMachina CLI wrapper for DroidReaver."""
 
 from __future__ import annotations
 
@@ -7,8 +7,8 @@ from collections.abc import Sequence
 from typing import Any
 
 NOTICE = (
-    "DexMachina has been renamed to PinDroid. "
-    "Install and use the maintained package with: pip install pindroid"
+    "DexMachina has been renamed to DroidReaver. "
+    "Install and use the maintained package with: pip install droidreaver"
 )
 
 
@@ -22,6 +22,6 @@ def main(
     **extra: Any,
 ) -> Any:
     print_deprecation_notice()
-    from pindroid.cli import main as pindroid_main
+    from droidreaver.cli import main as droidreaver_main
 
-    return pindroid_main(args=args, prog_name=prog_name, **extra)
+    return droidreaver_main(args=args, prog_name=prog_name, **extra)

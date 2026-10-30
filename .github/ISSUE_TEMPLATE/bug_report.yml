@@ -1,18 +1,18 @@
 name: Bug report
-description: Report a PinDroid failure or regression
+description: Report a DroidReaver failure or regression
 title: "[Bug]: "
 labels: ["bug"]
 body:
   - type: markdown
     attributes:
       value: |
-        Thanks for helping make PinDroid more reliable. Please include enough detail to reproduce the behavior.
+        Thanks for helping make DroidReaver more reliable. Please include enough detail to reproduce the behavior.
   - type: input
     id: version
     attributes:
-      label: PinDroid version
-      description: Run `pindroid --version` or provide the commit SHA.
-      placeholder: "pindroid, version 0.1.0"
+      label: DroidReaver version
+      description: Run `droidreaver --version` or provide the commit SHA.
+      placeholder: "droidreaver, version 0.1.0"
     validations:
       required: true
   - type: dropdown

@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from pindroid.config import (
+from droidreaver.config import (
     format_config_toml,
     get_pinned_version,
     load_config,
@@ -17,7 +17,7 @@ from pindroid.config import (
 
 @pytest.fixture
 def config_path(tmp_path: Path) -> Path:
-    cfg = tmp_path / "pindroid.toml"
+    cfg = tmp_path / "droidreaver.toml"
     cfg.write_text(
         '[settings]\nadb_path = "adb"\ninstall_dir = "/tmp/tools"\n\n[pins]\n\n[ignored]\ntools = []\n',
         encoding="utf-8",

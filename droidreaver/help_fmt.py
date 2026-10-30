@@ -1,4 +1,4 @@
-"""Categorized --help output for the PinDroid CLI."""
+"""Categorized --help output for the DroidReaver CLI."""
 
 from __future__ import annotations
 
@@ -6,8 +6,8 @@ from collections import defaultdict
 
 import click
 
-from pindroid.runtime import list_runnable_tools
-from pindroid.utils import human_category
+from droidreaver.runtime import list_runnable_tools
+from droidreaver.utils import human_category
 
 # Core commands in display order (not tool dispatchers).
 CORE_SECTIONS: tuple[tuple[str, tuple[str, ...]], ...] = (
@@ -77,7 +77,7 @@ CATEGORY_ORDER: tuple[str, ...] = (
 )
 
 
-class PinDroidGroup(click.Group):
+class DroidReaverGroup(click.Group):
     """Click group that renders --help in categorized sections."""
 
     def format_commands(self, ctx: click.Context, formatter: click.HelpFormatter) -> None:
@@ -148,6 +148,6 @@ class PinDroidGroup(click.Group):
 
         with formatter.section("Tip"):
             formatter.write_text(
-                "Run any tool directly: pindroid frida -U   ·   "
-                "Full tool list: pindroid arsenal"
+                "Run any tool directly: droidreaver frida -U   ·   "
+                "Full tool list: droidreaver arsenal"
             )

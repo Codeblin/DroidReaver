@@ -13,9 +13,9 @@ import requests
 from rich.console import Console
 from rich.progress import Progress
 
-from pindroid.config import get_setting, install_dir
-from pindroid.progress import work_spinner
-from pindroid.utils import PROBE_CMD_TIMEOUT, detect_platform, github_headers, parse_version, run_cmd, which
+from droidreaver.config import get_setting, install_dir
+from droidreaver.progress import work_spinner
+from droidreaver.utils import PROBE_CMD_TIMEOUT, detect_platform, github_headers, parse_version, run_cmd, which
 
 console = Console()
 
@@ -67,8 +67,8 @@ def adb_path(config: dict) -> str:
     if managed:
         return managed
     raise DeviceError(
-        "adb not found. Install platform-tools, run `pindroid shell`, "
-        "or set adb_path in pindroid.toml"
+        "adb not found. Install platform-tools, run `droidreaver shell`, "
+        "or set adb_path in droidreaver.toml"
     )
 
 
@@ -138,14 +138,14 @@ def get_device_arch(config: dict, serial: str | None = None) -> str:
 def get_local_frida_version(config: dict | None = None) -> str:
     env = None
     if config is not None:
-        from pindroid.runtime import build_run_env
+        from droidreaver.runtime import build_run_env
 
         env = build_run_env(config)
 
     result = run_cmd("frida --version", env=env, timeout=PROBE_CMD_TIMEOUT)
     if result.returncode != 0:
         raise DeviceError(
-            "frida not installed locally. Run: pindroid use latest"
+            "frida not installed locally. Run: droidreaver use latest"
         )
     ver = parse_version(result.stdout or result.stderr)
     if not ver:
@@ -431,7 +431,7 @@ def print_frida_attach_troubleshooting(
 
     if not status.running:
         console.print("[yellow]frida-server is not running.[/]")
-        console.print(f"  [cyan]pindroid device ready{serial_flag}[/]")
+        console.print(f"  [cyan]droidreaver device ready{serial_flag}[/]")
         return
 
     if status.device_rooted and not status.runs_as_root:
@@ -445,7 +445,7 @@ def print_frida_attach_troubleshooting(
         )
         console.print("[bold]Fix — restart frida-server as root:[/]")
         console.print(
-            f"  [cyan]pindroid device root-server{serial_flag}[/]  "
+            f"  [cyan]droidreaver device root-server{serial_flag}[/]  "
             "[dim](tries multiple su strategies)[/]\n"
             f"  [cyan]adb{serial_flag} shell su -c "
             f"'pkill frida-server; {DEFAULT_FRIDA_SERVER_PATH} -D &'[/]\n"
@@ -467,6 +467,6 @@ def print_frida_attach_troubleshooting(
         console.print(
             "[yellow]frida-server runs as root but attach still failed.[/]\n"
             "Try opening the app first, then attach without [cyan]--spawn[/]:\n"
-            f"  [cyan]pindroid hook -n {pkg}{serial_flag}[/]\n"
-            f"  [cyan]pindroid objection -g {pkg} explore{serial_flag}[/]"
+            f"  [cyan]droidreaver hook -n {pkg}{serial_flag}[/]\n"
+            f"  [cyan]droidreaver objection -g {pkg} explore{serial_flag}[/]"
         )

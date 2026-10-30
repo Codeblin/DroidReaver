@@ -19,9 +19,9 @@ import requests
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn, TimeElapsedColumn
 
-from pindroid.config import get_pinned_version, install_dir
-from pindroid.registry import Tool, get_pin_group, get_tool, resolve_install_order
-from pindroid.utils import (
+from droidreaver.config import get_pinned_version, install_dir
+from droidreaver.registry import Tool, get_pin_group, get_tool, resolve_install_order
+from droidreaver.utils import (
     compare_versions,
     detect_platform,
     detect_system_package_manager,
@@ -73,14 +73,14 @@ def _merged_pip_versions(config: dict | None) -> dict[str, str]:
     if not config:
         return versions
 
-    from pindroid.versions import frida_venv_path, get_active_frida_version
+    from droidreaver.versions import frida_venv_path, get_active_frida_version
 
     active = get_active_frida_version(config)
     if not active:
         return versions
 
     venv = frida_venv_path(active)
-    from pindroid.versions import _venv_python
+    from droidreaver.versions import _venv_python
 
     py = _venv_python(venv)
     if not py.is_file():
@@ -171,7 +171,7 @@ def get_latest_version(tool: Tool, *, fetch: bool = True) -> str | None:
         except requests.RequestException:
             latest = None
     elif tool.install_method == "npm" and tool.npm_package:
-        from pindroid.utils import PIP_CMD_TIMEOUT
+        from droidreaver.utils import PIP_CMD_TIMEOUT
 
         result = run_cmd(f"npm view {tool.npm_package} version", timeout=PIP_CMD_TIMEOUT)
         if result.returncode == 0:
@@ -254,7 +254,7 @@ def _write_medusa_launcher(inst: Path, bin_name: str) -> None:
     launcher.parent.mkdir(parents=True, exist_ok=True)
     launcher.write_text(
         '''\
-"""PinDroid Medusa launcher."""
+"""DroidReaver Medusa launcher."""
 from __future__ import annotations
 
 import runpy
@@ -264,7 +264,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 
 if sys.platform == "win32":
-    from pindroid.shims.readline_win import install_readline_shim
+    from droidreaver.shims.readline_win import install_readline_shim
 
     install_readline_shim()
 
@@ -305,7 +305,7 @@ def _finalize_python_repo_install(tool: Tool, inst: Path) -> None:
         wrapper = inst / "bin" / bin_name
         _write_cli_wrapper(wrapper, [sys.executable, str(entry)])
     console.print(f"[green]✓[/] {tool.display_name} installed at {inst}")
-    console.print(f"  Run: [cyan]pindroid {bin_name} --help[/]")
+    console.print(f"  Run: [cyan]droidreaver {bin_name} --help[/]")
     if tool.name == "medusa" and detect_platform() == "windows":
         console.print(
             "[yellow]Note:[/] Medusa upstream lists limited functionality on Windows. "
@@ -334,7 +334,7 @@ def _download_github_repo_zip(tool: Tool, inst: Path) -> None:
         if inst.exists():
             shutil.rmtree(inst)
         shutil.move(str(children[0]), str(inst))
-    (inst / ".pindroid-source").write_text("zip\n", encoding="utf-8")
+    (inst / ".droidreaver-source").write_text("zip\n", encoding="utf-8")
 
 
 def _install_git_clone(tool: Tool, cfg: dict, *, force: bool = False) -> None:
@@ -351,7 +351,7 @@ def _install_git_clone(tool: Tool, cfg: dict, *, force: bool = False) -> None:
         wrapper_sh.is_file()
         or wrapper_bat.is_file()
         or (inst / ".git").is_dir()
-        or (inst / ".pindroid-source").is_file()
+        or (inst / ".droidreaver-source").is_file()
     )
 
     if (inst / ".git").is_dir() and git_exe and not force:
@@ -377,7 +377,7 @@ def _install_git_clone(tool: Tool, cfg: dict, *, force: bool = False) -> None:
         if result.returncode != 0:
             err = (result.stderr or result.stdout or "git clone failed").strip()
             raise InstallError(f"git clone failed for {tool.name}:\n{err}")
-        (inst / ".pindroid-source").write_text("git\n", encoding="utf-8")
+        (inst / ".droidreaver-source").write_text("git\n", encoding="utf-8")
     else:
         console.print(
             "[yellow]git not found — downloading GitHub source zip instead.[/]"
@@ -423,7 +423,7 @@ def _expected_download_sha256(tool: Tool, platform_key: str) -> str | None:
 
 
 def _install_metadata_path(tool_dir: Path) -> Path:
-    return tool_dir / ".pindroid-install.json"
+    return tool_dir / ".droidreaver-install.json"
 
 
 def _write_install_metadata(
@@ -716,7 +716,7 @@ def _install_github_release(
                 )
     elif tool.name == "medusa":
         raise InstallError(
-            "Medusa uses git install — run: pindroid install medusa"
+            "Medusa uses git install — run: droidreaver install medusa"
         )
     else:
         raise InstallError(f"No suitable release asset found for {tool.name} v{ver}")
@@ -842,7 +842,7 @@ def install_tool(
             f"{tool.display_name} is a manual install (GUI/commercial or OS-specific).\n"
             f"  Download: {url}\n"
             f"  {tool.notes or ''}\n"
-            f"  Hide it from reports: add '{tool.name}' to [ignored] tools in pindroid.toml"
+            f"  Hide it from reports: add '{tool.name}' to [ignored] tools in droidreaver.toml"
         )
 
     pinned = get_pinned_version(cfg, tool_name)
@@ -913,7 +913,7 @@ def check_pin_group_conflict(
 
 
 def force_version_match(a: str, b: str) -> bool:
-    from pindroid.utils import versions_match
+    from droidreaver.utils import versions_match
 
     return versions_match(a, b)
 
@@ -953,7 +953,7 @@ def install_tools(
                 continue
 
             pinned = get_pinned_version(cfg, name)
-            from pindroid.versions import FRIDA_EXACT
+            from droidreaver.versions import FRIDA_EXACT
 
             in_group = name in get_pin_group(tool_names[0])
             if name in FRIDA_EXACT and in_group:
@@ -980,7 +980,7 @@ def install_tools(
                         "Pin group version conflict detected:\n"
                         + "\n".join(f"  • {w}" for w in conflicts)
                         + "\n\nUse --force to override or pin the group with: "
-                        f"pindroid pin {name} {ver}"
+                        f"droidreaver pin {name} {ver}"
                     )
 
             desc = f"[cyan]Installing[/] [bold]{tool.display_name}[/]" + (f" [yellow]@{ver}[/]" if ver else "")
@@ -1038,7 +1038,7 @@ def sync_pin_group(
     (frida-tools, objection, r2frida) are upgraded so pip resolves versions
     compatible with that runtime — they do NOT use the same version number.
     """
-    from pindroid.versions import (
+    from droidreaver.versions import (
         FRIDA_COMPANIONS,
         FRIDA_COMPANIONS_OPTIONAL,
         FRIDA_EXACT,
@@ -1126,7 +1126,7 @@ def update_pin_group(
     force: bool = False,
 ) -> list[tuple[str, str | None, str | None]]:
     """Update all members of a pin group atomically."""
-    from pindroid.versions import PinGroupSyncError, print_sync_error
+    from droidreaver.versions import PinGroupSyncError, print_sync_error
 
     try:
         return sync_pin_group(tool_name, cfg, force=force)

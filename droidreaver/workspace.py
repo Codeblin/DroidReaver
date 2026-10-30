@@ -1,19 +1,19 @@
-"""Repo-local workspace setup — `pindroid init` and .gitignore management."""
+"""Repo-local workspace setup — `droidreaver init` and .gitignore management."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from pindroid.config import DEFAULT_CONFIG_NAME
-from pindroid.profiles import DEFAULT_PROFILE
+from droidreaver.config import DEFAULT_CONFIG_NAME
+from droidreaver.profiles import DEFAULT_PROFILE
 
-# Everything PinDroid downloads lives under this dir; it is gitignored.
-WORKSPACE_DIRNAME = ".pindroid"
+# Everything DroidReaver downloads lives under this dir; it is gitignored.
+WORKSPACE_DIRNAME = ".droidreaver"
 TOOLS_SUBDIR = "tools"
 CACHE_SUBDIR = "cache"
 
-GITIGNORE_BLOCK_HEADER = "# PinDroid - downloaded tools & caches (managed)"
+GITIGNORE_BLOCK_HEADER = "# DroidReaver - downloaded tools & caches (managed)"
 GITIGNORE_ENTRIES: tuple[str, ...] = (
     f"{WORKSPACE_DIRNAME}/{TOOLS_SUBDIR}/",
     f"{WORKSPACE_DIRNAME}/{CACHE_SUBDIR}/",
@@ -42,9 +42,9 @@ def find_git_root(start: Path | None = None) -> Path | None:
 
 def _project_config_body(profile: str) -> str:
     return (
-        "# PinDroid project environment\n"
-        "# Tools are downloaded into .pindroid/tools and added to PATH via\n"
-        "#   pindroid env   (print)   or   pindroid shell   (subshell)\n"
+        "# DroidReaver project environment\n"
+        "# Tools are downloaded into .droidreaver/tools and added to PATH via\n"
+        "#   droidreaver env   (print)   or   droidreaver shell   (subshell)\n"
         "\n"
         "[settings]\n"
         'adb_path = "adb"\n'
@@ -64,7 +64,7 @@ def _project_config_body(profile: str) -> str:
 
 
 def update_gitignore(repo_dir: Path) -> tuple[Path, list[str]]:
-    """Ensure PinDroid entries exist in repo .gitignore. Returns (path, added)."""
+    """Ensure DroidReaver entries exist in repo .gitignore. Returns (path, added)."""
     gitignore = repo_dir / ".gitignore"
     existing_lines: list[str] = []
     if gitignore.exists():
@@ -92,7 +92,7 @@ def init_workspace(
     profile: str = DEFAULT_PROFILE,
     force: bool = False,
 ) -> InitResult:
-    """Create a repo-local PinDroid workspace (config, dirs, gitignore)."""
+    """Create a repo-local DroidReaver workspace (config, dirs, gitignore)."""
     repo_dir = (target_dir or find_git_root() or Path.cwd()).resolve()
     config_path = repo_dir / DEFAULT_CONFIG_NAME
 

@@ -1,5 +1,5 @@
 name: New tool request
-description: Request a tool for the PinDroid registry
+description: Request a tool for the DroidReaver registry
 title: "[Tool]: "
 labels: ["tool-request"]
 body:
@@ -50,7 +50,7 @@ body:
   - type: textarea
     id: value
     attributes:
-      label: Why should PinDroid include it?
+      label: Why should DroidReaver include it?
       description: Describe the Android security workflow it supports.
     validations:
       required: true

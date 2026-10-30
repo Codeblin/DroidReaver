@@ -2,7 +2,7 @@
 
 from unittest.mock import patch
 
-from pindroid.installer import check_pin_group_conflict, force_version_match
+from droidreaver.installer import check_pin_group_conflict, force_version_match
 
 
 def test_force_version_match():
@@ -12,7 +12,7 @@ def test_force_version_match():
 
 def test_pin_conflict_empty_when_no_installed():
     cfg = {"pins": {}, "settings": {}, "ignored": {"tools": []}}
-    with patch("pindroid.installer.get_tool_version", return_value=None):
+    with patch("droidreaver.installer.get_tool_version", return_value=None):
         warnings = check_pin_group_conflict("frida", "16.2.0", cfg)
     assert warnings == []
 
@@ -23,6 +23,6 @@ def test_pin_conflict_detects_mismatch():
     def fake_version(tool):
         return "16.1.4" if tool.name == "objection" else None
 
-    with patch("pindroid.installer.get_tool_version", side_effect=fake_version):
+    with patch("droidreaver.installer.get_tool_version", side_effect=fake_version):
         warnings = check_pin_group_conflict("frida", "16.2.0", cfg)
     assert any("objection" in w for w in warnings)

@@ -1,4 +1,4 @@
-"""PinDroid interactive console — a pentest REPL for a connected device.
+"""DroidReaver interactive console — a pentest REPL for a connected device.
 
 This is a real interactive shell (like Objection's prompt) that keeps live
 session state — selected device + target app — and exposes first-class
@@ -20,21 +20,21 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-from pindroid.bypass import BypassError, list_android_apps, run_bypass
-from pindroid.device import (
+from droidreaver.bypass import BypassError, list_android_apps, run_bypass
+from droidreaver.device import (
     DeviceError,
     adb_path,
     check_frida_server_running,
     list_devices,
     push_frida_server,
 )
-from pindroid.runtime import RunError, build_run_env, run_invocation
-from pindroid.versions import get_active_frida_version
+from droidreaver.runtime import RunError, build_run_env, run_invocation
+from droidreaver.versions import get_active_frida_version
 
 console = Console()
 
 BANNER = r"""
-[bold #00ff41]⚔  PinDroid Console[/]  [dim]— interactive Android pentest shell[/]
+[bold #00ff41]⚔  DroidReaver Console[/]  [dim]— interactive Android pentest shell[/]
 """
 
 _GREEN = "\033[92m"
@@ -42,7 +42,7 @@ _DIM = "\033[2m"
 _RESET = "\033[0m"
 
 
-class PinDroidConsole(cmd.Cmd):
+class DroidReaverConsole(cmd.Cmd):
     """Interactive pentest REPL with live device + target state."""
 
     intro = ""  # printed manually so we can use rich
@@ -62,7 +62,7 @@ class PinDroidConsole(cmd.Cmd):
     def _update_prompt(self) -> None:
         dev = self.serial or "no-device"
         tgt = self.package or "no-target"
-        self.prompt = f"{_GREEN}pindroid{_RESET} {_DIM}[{dev} | {tgt}]{_RESET}> "
+        self.prompt = f"{_GREEN}droidreaver{_RESET} {_DIM}[{dev} | {tgt}]{_RESET}> "
 
     def postcmd(self, stop: bool, line: str) -> bool:  # noqa: D401
         self._update_prompt()
@@ -258,7 +258,7 @@ class PinDroidConsole(cmd.Cmd):
         lines = [
             f"Device        : {self.serial or '[yellow]none[/]'}",
             f"Target app    : {self.package or '[yellow]none[/]'}",
-            f"Frida runtime : {active or '[yellow]none — run: pindroid use latest[/]'}",
+            f"Frida runtime : {active or '[yellow]none — run: droidreaver use latest[/]'}",
             f"frida-server  : {'[green]running[/]' if server else '[red]not running[/] (run: ready)'}",
         ]
         console.print(Panel("\n".join(lines), title="[bold]Session[/]", border_style="#3a6652"))
@@ -273,7 +273,7 @@ class PinDroidConsole(cmd.Cmd):
         if not get_active_frida_version(self.config):
             console.print(
                 "[yellow]No active frida runtime.[/] Set one first: "
-                "[cyan]pindroid use latest[/] (outside the console), then re-run [cyan]ready[/]."
+                "[cyan]droidreaver use latest[/] (outside the console), then re-run [cyan]ready[/]."
             )
             return
         try:
@@ -480,7 +480,7 @@ class PinDroidConsole(cmd.Cmd):
         subprocess.run(self._adb_base() + ["push", *args], env=build_run_env(self.config))
 
     def do_run(self, arg: str) -> None:
-        """run <tool> [args...] — run any PinDroid tool (frida, jadx, apktool, …)."""
+        """run <tool> [args...] — run any DroidReaver tool (frida, jadx, apktool, …)."""
         args = self._split(arg)
         if not args:
             console.print("[yellow]Usage:[/] run <tool> [args...]")
@@ -502,8 +502,8 @@ class PinDroidConsole(cmd.Cmd):
     do_cls = do_clear
 
     def do_exit(self, arg: str) -> bool:
-        """exit — leave the PinDroid console."""
-        console.print("[dim]Leaving PinDroid console.[/]")
+        """exit — leave the DroidReaver console."""
+        console.print("[dim]Leaving DroidReaver console.[/]")
         return True
 
     do_quit = do_exit
@@ -514,12 +514,12 @@ class PinDroidConsole(cmd.Cmd):
 
 
 def run_console(config: dict, serial: str | None = None) -> int:
-    """Start the interactive PinDroid console."""
+    """Start the interactive DroidReaver console."""
     if not (sys.stdin and sys.stdin.isatty()):
         console.print(
             "[yellow]The console needs an interactive terminal.[/] "
-            "Run [cyan]pindroid console[/] directly in your terminal."
+            "Run [cyan]droidreaver console[/] directly in your terminal."
         )
         return 1
-    PinDroidConsole(config, serial=serial).cmdloop()
+    DroidReaverConsole(config, serial=serial).cmdloop()
     return 0

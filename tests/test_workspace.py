@@ -1,6 +1,6 @@
 """Tests for repo-local workspace init and .gitignore management."""
 
-from pindroid.workspace import (
+from droidreaver.workspace import (
     GITIGNORE_ENTRIES,
     find_git_root,
     init_workspace,
@@ -11,12 +11,12 @@ from pindroid.workspace import (
 def test_init_creates_config_and_dirs(tmp_path):
     result = init_workspace(tmp_path, profile="minimal")
     assert result.created_config
-    assert result.config_path == tmp_path / "pindroid.toml"
+    assert result.config_path == tmp_path / "droidreaver.toml"
     assert result.config_path.exists()
-    assert (tmp_path / ".pindroid" / "tools").is_dir()
+    assert (tmp_path / ".droidreaver" / "tools").is_dir()
 
     body = result.config_path.read_text(encoding="utf-8")
-    assert 'install_dir = ".pindroid/tools"' in body
+    assert 'install_dir = ".droidreaver/tools"' in body
     assert 'profile = "minimal"' in body
 
 

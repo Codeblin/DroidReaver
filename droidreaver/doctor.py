@@ -9,15 +9,15 @@ from typing import Callable
 from rich.console import Console
 from rich.panel import Panel
 
-from pindroid.banner import doctor_table
-from pindroid.config import get_pinned_version
-from pindroid.progress import work_progress
-from pindroid.device import DeviceError, check_frida_server_running, frida_server_status, get_local_frida_version, list_devices
-from pindroid.config import install_dir
-from pindroid.installer import get_tool_version, warm_version_cache
-from pindroid.registry import FRIDA_PIN_GROUP, TOOLS, get_tool
-from pindroid.runtime import _find_binary_in_dir, build_run_env, collect_tool_bin_paths
-from pindroid.utils import (
+from droidreaver.banner import doctor_table
+from droidreaver.config import get_pinned_version
+from droidreaver.progress import work_progress
+from droidreaver.device import DeviceError, check_frida_server_running, frida_server_status, get_local_frida_version, list_devices
+from droidreaver.config import install_dir
+from droidreaver.installer import get_tool_version, warm_version_cache
+from droidreaver.registry import FRIDA_PIN_GROUP, TOOLS, get_tool
+from droidreaver.runtime import _find_binary_in_dir, build_run_env, collect_tool_bin_paths
+from droidreaver.utils import (
     PROBE_CMD_TIMEOUT,
     normalize_pkg_name,
     parse_version,
@@ -58,7 +58,7 @@ def check_java() -> CheckResult:
             "Java",
             "warn",
             "Not found — required for jadx, apktool, uber-apk-signer",
-            "Install JDK 11+ and set java_path in pindroid.toml",
+            "Install JDK 11+ and set java_path in droidreaver.toml",
             automated=False,
         )
     result = run_cmd("java -version", timeout=PROBE_CMD_TIMEOUT)
@@ -80,7 +80,7 @@ def check_adb(config: dict) -> CheckResult:
             automated=False,
         )
     except DeviceError as e:
-        return CheckResult("ADB", "fail", str(e), "pindroid install adb")
+        return CheckResult("ADB", "fail", str(e), "droidreaver install adb")
 
 
 def check_nodejs() -> CheckResult:
@@ -98,8 +98,8 @@ def check_nodejs() -> CheckResult:
 
 
 def check_frida_pin_group(config: dict) -> CheckResult:
-    from pindroid.registry import FRIDA_PIN_GROUP
-    from pindroid.versions import FRIDA_COMPANIONS, FRIDA_EXACT
+    from droidreaver.registry import FRIDA_PIN_GROUP
+    from droidreaver.versions import FRIDA_COMPANIONS, FRIDA_EXACT
 
     frida_tool = get_tool("frida")
     frida_ver = get_tool_version(frida_tool, config)
@@ -109,7 +109,7 @@ def check_frida_pin_group(config: dict) -> CheckResult:
             "Frida pin group",
             "warn",
             "frida runtime not installed",
-            "pindroid use latest   # or: pindroid install frida",
+            "droidreaver use latest   # or: droidreaver install frida",
         )
 
     parts = [f"frida={frida_ver}"]
@@ -136,7 +136,7 @@ def check_frida_pin_group(config: dict) -> CheckResult:
             "Frida pin group",
             "fail",
             f"Pinned frida {pinned} but runtime installed is {frida_ver} ({', '.join(parts)})",
-            f"pindroid use {pinned}   # align runtime to pin",
+            f"droidreaver use {pinned}   # align runtime to pin",
         )
 
     if missing:
@@ -144,7 +144,7 @@ def check_frida_pin_group(config: dict) -> CheckResult:
             "Frida pin group",
             "warn",
             f"Runtime {frida_ver}; missing companions: {', '.join(missing)}",
-            "pindroid sync frida   # or: pindroid use " + frida_ver,
+            "droidreaver sync frida   # or: droidreaver use " + frida_ver,
         )
 
     msg = f"Runtime OK — {', '.join(parts)}"
@@ -183,7 +183,7 @@ def check_frida_server_match(config: dict) -> CheckResult:
             "Frida server",
             "warn",
             f"Not running on device (local frida: {local})",
-            "pindroid push-server",
+            "droidreaver push-server",
         )
 
     status = frida_server_status(config, devices[0])
@@ -192,7 +192,7 @@ def check_frida_server_match(config: dict) -> CheckResult:
             "Frida server",
             "warn",
             f"Running as {status.user or 'non-root'} — attach to apps will fail",
-            "pindroid push-server",
+            "droidreaver push-server",
         )
     if not status.device_rooted:
         return CheckResult(
@@ -214,7 +214,7 @@ def check_frida_server_match(config: dict) -> CheckResult:
         "Frida server",
         "warn",
         f"Running but frida-ps failed — version mismatch likely (local: {local})",
-        "pindroid push-server",
+        "droidreaver push-server",
     )
 
 
@@ -249,7 +249,7 @@ def _tool_installed_fast(tool, config: dict, pip_versions: dict[str, str]) -> tu
 
 
 def check_broken_installs(config: dict) -> list[CheckResult]:
-    from pindroid.installer import _merged_pip_versions
+    from droidreaver.installer import _merged_pip_versions
 
     results: list[CheckResult] = []
     pip_versions = _merged_pip_versions(config)
@@ -272,8 +272,8 @@ def check_broken_installs(config: dict) -> list[CheckResult]:
                 tool.display_name,
                 "warn",
                 f"Installed ({label}) but '{tool.binary_name}' is not on your PATH",
-                "Use 'pindroid shell' (ready PATH) or 'pindroid env' to print PATH setup; "
-                f"or reinstall: pindroid install {name}",
+                "Use 'droidreaver shell' (ready PATH) or 'droidreaver env' to print PATH setup; "
+                f"or reinstall: droidreaver install {name}",
                 fix_tool=name,
                 automated=True,
             )
@@ -351,8 +351,8 @@ def print_doctor_report(config: dict) -> int:
     if path_warnings:
         console.print(
             "\n[dim]Tip:[/] tools are installed but not on PATH — run "
-            "[cyan]pindroid shell[/] for a ready environment, or "
-            "[cyan]pindroid env[/] to print PATH setup."
+            "[cyan]droidreaver shell[/] for a ready environment, or "
+            "[cyan]droidreaver env[/] to print PATH setup."
         )
 
     if failures:

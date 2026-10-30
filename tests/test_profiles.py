@@ -2,13 +2,13 @@
 
 import pytest
 
-from pindroid.profiles import (
+from droidreaver.profiles import (
     PROFILES,
     profile_description,
     profile_names,
     resolve_profile,
 )
-from pindroid.registry import TOOLS
+from droidreaver.registry import TOOLS
 
 
 def test_minimal_profile_tools():

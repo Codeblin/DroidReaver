@@ -5,11 +5,11 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "dexmachina"
 version = "0.2.0"
-description = "Deprecated transition package for PinDroid"
+description = "Deprecated transition package for DroidReaver"
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
-authors = [{ name = "PinDroid Contributors" }]
+authors = [{ name = "DroidReaver Contributors" }]
 keywords = ["android", "pentesting", "frida", "security", "deprecated"]
 classifiers = [
     "Development Status :: 7 - Inactive",
@@ -22,18 +22,18 @@ classifiers = [
     "Topic :: Security",
 ]
 dependencies = [
-    "pindroid>=0.1.1",
+    "droidreaver>=0.2.0",
 ]
 
 [project.scripts]
 dexmachina = "dexmachina.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/Codeblin/PinDroid"
-Repository = "https://github.com/Codeblin/PinDroid"
-Issues = "https://github.com/Codeblin/PinDroid/issues"
-Documentation = "https://github.com/Codeblin/PinDroid#readme"
-"Migration Guide" = "https://github.com/Codeblin/PinDroid/blob/main/MIGRATING.md"
+Homepage = "https://github.com/Codeblin/droidreaver"
+Repository = "https://github.com/Codeblin/droidreaver"
+Issues = "https://github.com/Codeblin/droidreaver/issues"
+Documentation = "https://github.com/Codeblin/droidreaver#readme"
+"Migration Guide" = "https://github.com/Codeblin/droidreaver/blob/main/MIGRATING.md"
 
 [tool.setuptools.packages.find]
 where = ["src"]

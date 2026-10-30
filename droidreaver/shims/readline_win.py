@@ -12,7 +12,7 @@ def _noop(*_args, **_kwargs) -> None:
 
 def _readline_stub() -> types.ModuleType:
     stub = types.ModuleType("readline")
-    stub.__doc__ = "pindroid readline stub (Windows)"
+    stub.__doc__ = "droidreaver readline stub (Windows)"
     stub.parse_and_bind = _noop
     stub.set_completer = _noop
     stub.set_completer_delims = _noop

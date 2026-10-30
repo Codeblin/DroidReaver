@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from unittest.mock import patch
 
-from pindroid.medusa_modules import (
+from droidreaver.medusa_modules import (
     MEDUSA_ROOT_MODULE,
     parse_med_module,
     resolve_bypass_script,
@@ -32,6 +32,6 @@ def test_resolve_bypass_script_uses_bundled_fallback(tmp_path: Path, monkeypatch
     bundled.write_text("// bundled fallback\n", encoding="utf-8")
 
     spec = f"medusa:{MEDUSA_ROOT_MODULE}"
-    with patch("pindroid.medusa_modules.medusa_install_dir", return_value=None):
+    with patch("droidreaver.medusa_modules.medusa_install_dir", return_value=None):
         path = resolve_bypass_script({}, spec, scripts)
     assert path == bundled

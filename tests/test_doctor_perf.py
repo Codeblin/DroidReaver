@@ -2,12 +2,12 @@
 
 from unittest.mock import patch
 
-from pindroid.doctor import check_broken_installs, check_frida_server_match
-from pindroid.registry import get_tool
+from droidreaver.doctor import check_broken_installs, check_frida_server_match
+from droidreaver.registry import get_tool
 
 
 def test_check_broken_installs_skips_version_cmd_probes():
-    config = {"settings": {"install_dir": "~/.pindroid/tools"}, "pins": {}, "ignored": {"tools": []}}
+    config = {"settings": {"install_dir": "~/.droidreaver/tools"}, "pins": {}, "ignored": {"tools": []}}
     tool = get_tool("jadx")
 
     def installed_side_effect(tool_arg, _config, _pip_versions):
@@ -15,11 +15,11 @@ def test_check_broken_installs_skips_version_cmd_probes():
             return True, "1.5.0"
         return False, None
 
-    with patch("pindroid.installer._merged_pip_versions", return_value={}):
-        with patch("pindroid.doctor.collect_tool_bin_paths", return_value=[]):
-            with patch("pindroid.doctor._tool_installed_fast", side_effect=installed_side_effect):
-                with patch("pindroid.doctor._binary_resolvable", return_value=False):
-                    with patch("pindroid.installer.get_installed_version") as mock_version:
+    with patch("droidreaver.installer._merged_pip_versions", return_value={}):
+        with patch("droidreaver.doctor.collect_tool_bin_paths", return_value=[]):
+            with patch("droidreaver.doctor._tool_installed_fast", side_effect=installed_side_effect):
+                with patch("droidreaver.doctor._binary_resolvable", return_value=False):
+                    with patch("droidreaver.installer.get_installed_version") as mock_version:
                         results = check_broken_installs(config)
 
     assert len(results) == 1
@@ -28,18 +28,18 @@ def test_check_broken_installs_skips_version_cmd_probes():
 
 
 def test_check_broken_installs_no_issue_when_binary_resolvable():
-    config = {"settings": {"install_dir": "~/.pindroid/tools"}, "pins": {}, "ignored": {"tools": []}}
+    config = {"settings": {"install_dir": "~/.droidreaver/tools"}, "pins": {}, "ignored": {"tools": []}}
 
-    with patch("pindroid.installer._merged_pip_versions", return_value={"frida": "17.0.0"}):
-        with patch("pindroid.doctor.collect_tool_bin_paths", return_value=[]):
-            with patch("pindroid.doctor._binary_resolvable", return_value=True):
+    with patch("droidreaver.installer._merged_pip_versions", return_value={"frida": "17.0.0"}):
+        with patch("droidreaver.doctor.collect_tool_bin_paths", return_value=[]):
+            with patch("droidreaver.doctor._binary_resolvable", return_value=True):
                 results = check_broken_installs(config)
 
     assert results == []
 
 
 def test_frida_server_check_uses_managed_run_env():
-    config = {"settings": {"install_dir": "~/.pindroid/tools"}, "active": {"frida": "17.0.0"}}
+    config = {"settings": {"install_dir": "~/.droidreaver/tools"}, "active": {"frida": "17.0.0"}}
     captured = {}
 
     def fake_run(cmd, *, env=None, timeout=None, **kwargs):
@@ -53,15 +53,15 @@ def test_frida_server_check_uses_managed_run_env():
 
         return Result()
 
-    with patch("pindroid.doctor.list_devices", return_value=["emulator-5554"]):
-        with patch("pindroid.doctor.get_local_frida_version", return_value="17.0.0") as local:
-            with patch("pindroid.doctor.check_frida_server_running", return_value=True):
+    with patch("droidreaver.doctor.list_devices", return_value=["emulator-5554"]):
+        with patch("droidreaver.doctor.get_local_frida_version", return_value="17.0.0") as local:
+            with patch("droidreaver.doctor.check_frida_server_running", return_value=True):
                 with patch(
-                    "pindroid.doctor.frida_server_status",
+                    "droidreaver.doctor.frida_server_status",
                     return_value=type("Status", (), {"device_rooted": True, "runs_as_root": True})(),
                 ):
-                    with patch("pindroid.doctor.build_run_env", return_value={"PATH": "/tmp/frida"}):
-                        with patch("pindroid.doctor.run_cmd", side_effect=fake_run):
+                    with patch("droidreaver.doctor.build_run_env", return_value={"PATH": "/tmp/frida"}):
+                        with patch("droidreaver.doctor.run_cmd", side_effect=fake_run):
                             result = check_frida_server_match(config)
 
     assert result.status == "ok"
