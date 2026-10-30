@@ -1,6 +1,6 @@
 # Security Policy
 
-PinDroid is an Android security tool manager. It downloads and launches third-party tools, so security issues in PinDroid itself can affect real assessment workstations and devices.
+DroidReaver is an Android security tool manager. It downloads and launches third-party tools, so security issues in DroidReaver itself can affect real assessment workstations and devices.
 
 ## Supported Versions
 
@@ -16,13 +16,13 @@ Please do not open a public issue for a suspected vulnerability.
 
 Preferred reporting channel:
 
-- GitHub Security Advisories: <https://github.com/Codeblin/pindroid/security/advisories/new>
+- GitHub Security Advisories: <https://github.com/Codeblin/droidreaver/security/advisories/new>
 
 If GitHub advisories are not available to you, open a minimal public issue asking for a private contact path without including exploit details.
 
 Please include:
 
-- Affected PinDroid version or commit
+- Affected DroidReaver version or commit
 - Host OS and Python version
 - The command you ran
 - Impact and reproduction steps
@@ -40,7 +40,7 @@ In scope:
 
 Out of scope:
 
-- Vulnerabilities in third-party tools PinDroid installs, unless PinDroid makes them worse
+- Vulnerabilities in third-party tools DroidReaver installs, unless DroidReaver makes them worse
 - Expected effects of running tools like Frida, Objection, adb, or mitmproxy against a device you control
 - Issues requiring malicious local administrator/root access
 

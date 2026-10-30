@@ -2,17 +2,17 @@
 
 from pathlib import Path
 
-from pindroid import lockfile
-from pindroid.config import META_KEY
+from droidreaver import lockfile
+from droidreaver.config import META_KEY
 
 
 def _cfg(root: Path) -> dict:
     return {
-        "settings": {"install_dir": ".pindroid/tools", "profile": "minimal"},
+        "settings": {"install_dir": ".droidreaver/tools", "profile": "minimal"},
         "pins": {},
         "ignored": {"tools": []},
         "active": {},
-        META_KEY: {"root": str(root), "path": str(root / "pindroid.toml")},
+        META_KEY: {"root": str(root), "path": str(root / "droidreaver.toml")},
     }
 
 
@@ -20,8 +20,8 @@ def test_build_and_roundtrip_lock(tmp_path, monkeypatch):
     def fake_version(tool, config=None):
         return {"adb": "1.0.41", "frida": "17.9.6"}.get(tool.name)
 
-    monkeypatch.setattr("pindroid.installer.get_tool_version", fake_version)
-    monkeypatch.setattr("pindroid.versions.get_active_frida_version", lambda _c: "17.9.6")
+    monkeypatch.setattr("droidreaver.installer.get_tool_version", fake_version)
+    monkeypatch.setattr("droidreaver.versions.get_active_frida_version", lambda _c: "17.9.6")
 
     cfg = _cfg(tmp_path)
     path = lockfile.write_lock(cfg)
@@ -41,9 +41,9 @@ def test_lock_includes_install_integrity_metadata(tmp_path, monkeypatch):
         return {"adb": "1.0.41"}.get(tool.name)
 
     cfg = _cfg(tmp_path)
-    meta_dir = tmp_path / ".pindroid" / "tools" / "adb"
+    meta_dir = tmp_path / ".droidreaver" / "tools" / "adb"
     meta_dir.mkdir(parents=True)
-    (meta_dir / ".pindroid-install.json").write_text(
+    (meta_dir / ".droidreaver-install.json").write_text(
         """{
   "source_url": "https://example.invalid/platform-tools.zip",
   "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -53,8 +53,8 @@ def test_lock_includes_install_integrity_metadata(tmp_path, monkeypatch):
         encoding="utf-8",
     )
 
-    monkeypatch.setattr("pindroid.installer.get_tool_version", fake_version)
-    monkeypatch.setattr("pindroid.versions.get_active_frida_version", lambda _c: None)
+    monkeypatch.setattr("droidreaver.installer.get_tool_version", fake_version)
+    monkeypatch.setattr("droidreaver.versions.get_active_frida_version", lambda _c: None)
 
     lock = lockfile.build_lock(cfg)
 
@@ -100,8 +100,8 @@ def test_restore_skips_frida_pip_members(tmp_path, monkeypatch):
     ):
         installed.append((name, version, expected_sha256))
 
-    monkeypatch.setattr("pindroid.versions.use_frida_version", fake_use)
-    monkeypatch.setattr("pindroid.installer.install_tool", fake_install)
+    monkeypatch.setattr("droidreaver.versions.use_frida_version", fake_use)
+    monkeypatch.setattr("droidreaver.installer.install_tool", fake_install)
 
     restored, failures = lockfile.restore_from_lock(cfg, lock)
 
@@ -139,7 +139,7 @@ def test_restore_passes_locked_sha256_for_release_tools(tmp_path, monkeypatch):
     ):
         installed.append((name, version, expected_sha256))
 
-    monkeypatch.setattr("pindroid.installer.install_tool", fake_install)
+    monkeypatch.setattr("droidreaver.installer.install_tool", fake_install)
 
     restored, failures = lockfile.restore_from_lock(cfg, lock)
 

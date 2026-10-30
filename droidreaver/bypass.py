@@ -11,11 +11,11 @@ from typing import Literal
 
 from rich.console import Console
 
-from pindroid.device import force_stop_app, frida_server_status, launch_app, print_frida_attach_troubleshooting
-from pindroid.medusa_modules import MEDUSA_ROOT_SPEC, medusa_install_dir, resolve_bypass_script
-from pindroid.registry import get_tool
-from pindroid.runtime import RunError, build_run_env, resolve_executable
-from pindroid.utils import run_cmd, which
+from droidreaver.device import force_stop_app, frida_server_status, launch_app, print_frida_attach_troubleshooting
+from droidreaver.medusa_modules import MEDUSA_ROOT_SPEC, medusa_install_dir, resolve_bypass_script
+from droidreaver.registry import get_tool
+from droidreaver.runtime import RunError, build_run_env, resolve_executable
+from droidreaver.utils import run_cmd, which
 
 console = Console()
 
@@ -193,16 +193,16 @@ def resolve_android_target(
         raise BypassError(
             f"'{q}' is installed as [bold]{app.identifier}[/] but Frida sees no running PID.\n"
             "Open the app on the device, or cold-start it with [cyan]--spawn[/]:\n"
-            f"  pindroid bypass ssl -n {app.identifier} --spawn\n\n"
+            f"  droidreaver bypass ssl -n {app.identifier} --spawn\n\n"
             "Apps Frida can attach to right now:\n"
             f"{_format_running_apps(apps)}"
         )
 
     hints = [f"  {a.identifier}  ({a.name})" + (f"  pid={a.pid}" if a.pid else "") for a in apps[:12]]
-    hint_block = "\n".join(hints) if hints else "  (could not list apps — run: pindroid frida-ps -Uai)"
+    hint_block = "\n".join(hints) if hints else "  (could not list apps — run: droidreaver frida-ps -Uai)"
     raise BypassError(
         f"Could not resolve target '{q}'.\n"
-        "Use the exact package from [cyan]pindroid frida-ps -Uai[/] "
+        "Use the exact package from [cyan]droidreaver frida-ps -Uai[/] "
         "(Identifier column).\n\n"
         f"Known apps on device:\n{hint_block}"
     )
@@ -213,7 +213,7 @@ def script_path(spec: str, config: dict) -> Path:
         return resolve_bypass_script(config, spec, SCRIPTS_DIR)
     except FileNotFoundError as e:
         raise BypassError(
-            f"{e}\nInstall Medusa for the universal root module: pindroid install medusa"
+            f"{e}\nInstall Medusa for the universal root module: droidreaver install medusa"
         ) from e
 
 
@@ -237,26 +237,26 @@ def choose_engine(config: dict, engine: Engine, recipe_id: RecipeId = "ssl") -> 
         if engine == "objection" and recipe_id == "root":
             raise BypassError(
                 "Root bypass uses Medusa's universal module via Frida.\n"
-                "Drop --objection or use: pindroid bypass root -n <package> --spawn"
+                "Drop --objection or use: droidreaver bypass root -n <package> --spawn"
             )
         return engine
     if recipe_id in ("root", "all"):
         if not _medusa_root_available(config):
             raise BypassError(
                 "Medusa root module required.\n"
-                "Run: pindroid install medusa"
+                "Run: droidreaver install medusa"
             )
         if _tool_ready(config, "frida", "frida"):
             return "frida"
-        raise BypassError("Root bypass requires Frida. Run: pindroid install frida")
+        raise BypassError("Root bypass requires Frida. Run: droidreaver install frida")
     if _tool_ready(config, "objection", "objection"):
         return "objection"
     if _tool_ready(config, "frida", "frida"):
         return "frida"
     raise BypassError(
         "Neither objection nor frida is installed.\n"
-        "Install the stack: pindroid install frida objection\n"
-        "Then push server: pindroid push-server"
+        "Install the stack: droidreaver install frida objection\n"
+        "Then push server: droidreaver push-server"
     )
 
 
@@ -272,7 +272,7 @@ def preflight(config: dict, *, network: bool, serial: str | None = None) -> None
         console.print(
             "[bold yellow]Warning:[/] frida-server is running as [bold]shell[/], not [bold]root[/].\n"
             "Attach will fail with [dim]unable to access process[/] on most apps.\n"
-            "  [dim]Fix:[/] [cyan]pindroid push-server[/]  "
+            "  [dim]Fix:[/] [cyan]droidreaver push-server[/]  "
             "[dim](restarts as root when su works)[/]\n"
         )
     elif status.running and not status.device_rooted:
@@ -294,7 +294,7 @@ def preflight(config: dict, *, network: bool, serial: str | None = None) -> None
         if result.returncode != 0:
             console.print(
                 "[yellow]Warning:[/] frida-ps failed — is frida-server running?\n"
-                "  [dim]Try:[/] [cyan]pindroid push-server[/]"
+                "  [dim]Try:[/] [cyan]droidreaver push-server[/]"
             )
 
 
@@ -426,12 +426,12 @@ def _print_spawn_failure_help(package: str, serial: str | None) -> None:
     console.print(
         "\n[yellow]Spawn failed[/] — this app may block Frida cold start.\n\n"
         "[bold]Try attach mode[/] (open the app on the device first, no --spawn):\n"
-        f"  [cyan]pindroid hook -n {package}{serial_flag}[/]\n\n"
+        f"  [cyan]droidreaver hook -n {package}{serial_flag}[/]\n\n"
         "[bold]Or retry spawn[/] after a clean stop:\n"
         f"  [cyan]adb shell am force-stop {package}[/]\n"
-        f"  [cyan]pindroid hook -n {package} --spawn{serial_flag}[/]\n\n"
+        f"  [cyan]droidreaver hook -n {package} --spawn{serial_flag}[/]\n\n"
         "[bold]Or Objection[/] (sometimes works when Frida spawn does not):\n"
-        f"  [cyan]pindroid hook -n {package} --objection --spawn{serial_flag}[/]\n\n"
+        f"  [cyan]droidreaver hook -n {package} --objection --spawn{serial_flag}[/]\n\n"
         "[dim]Physical devices and hardened apps often need attach, not spawn.[/]"
     )
 
@@ -523,9 +523,9 @@ def run_bypass(
         )
 
     if chosen == "objection" and not _tool_ready(config, "objection", "objection"):
-        raise BypassError("Objection not installed. Run: pindroid install objection")
+        raise BypassError("Objection not installed. Run: droidreaver install objection")
     if chosen == "frida" and not _tool_ready(config, "frida", "frida"):
-        raise BypassError("Frida not installed. Run: pindroid install frida")
+        raise BypassError("Frida not installed. Run: droidreaver install frida")
 
     preflight(config, network=network, serial=serial)
 

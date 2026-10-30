@@ -162,7 +162,7 @@ def versions_match(a: str | None, b: str | None) -> bool:
 
 
 def cache_dir() -> Path:
-    d = Path.home() / ".pindroid" / "cache"
+    d = Path.home() / ".droidreaver" / "cache"
     d.mkdir(parents=True, exist_ok=True)
     return d
 
@@ -192,7 +192,7 @@ def _write_cache(path: Path, payload: dict[str, Any]) -> None:
 def github_headers() -> dict[str, str]:
     headers = {
         "Accept": "application/vnd.github+json",
-        "User-Agent": "pindroid/0.1.0",
+        "User-Agent": "droidreaver/0.1.0",
     }
     token = os.environ.get("GITHUB_TOKEN")
     if token:

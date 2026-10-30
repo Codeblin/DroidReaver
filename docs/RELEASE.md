@@ -1,6 +1,6 @@
 # Release Process
 
-PinDroid releases are tag-driven.
+DroidReaver releases are tag-driven.
 
 ## One-Time PyPI Setup
 
@@ -8,9 +8,9 @@ Create the PyPI project and configure Trusted Publishing before pushing the firs
 
 PyPI Trusted Publisher fields:
 
-- PyPI project: `pindroid`
+- PyPI project: `droidreaver`
 - Owner: `Codeblin`
-- Repository: `PinDroid`
+- Repository: `DroidReaver`
 - Workflow: `release.yml`
 - Environment: `pypi`
 
@@ -24,7 +24,7 @@ This matches PyPI's Trusted Publishing model: GitHub Actions gets a short-lived 
 
 ## Cut A Release
 
-1. Make sure `pyproject.toml`, `pindroid/__init__.py`, and `CHANGELOG.md` all reference the same version.
+1. Make sure `pyproject.toml`, `droidreaver/__init__.py`, and `CHANGELOG.md` all reference the same version.
 2. Run:
 
 ```bash
@@ -60,14 +60,14 @@ The release workflow will:
 Before archiving the old `dexmachina` PyPI project, publish one final
 transition release from `legacy/dexmachina`.
 
-This package is intentionally separate from the maintained `pindroid` package.
+This package is intentionally separate from the maintained `droidreaver` package.
 It:
 
 - uses PyPI name `dexmachina`,
 - has `Development Status :: 7 - Inactive`,
-- depends on `pindroid`,
+- depends on `droidreaver`,
 - exposes a deprecated `dexmachina` CLI wrapper,
-- prints a rename notice before delegating to PinDroid.
+- prints a rename notice before delegating to DroidReaver.
 
 Build locally:
 
@@ -78,7 +78,7 @@ python -m build
 python -m twine check dist/*
 ```
 
-Publish after `pindroid` exists on PyPI:
+Publish after `droidreaver` exists on PyPI:
 
 ```bash
 python -m twine upload dist/*

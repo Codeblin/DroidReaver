@@ -1,0 +1,18 @@
+[settings]
+adb_path = "adb"
+java_path = "java"
+install_dir = "~/.droidreaver/tools"
+# Default profile for `droidreaver up` (minimal | dynamic | static | traffic | scanners | full)
+# profile = "dynamic"
+auto_push_frida_server = false
+
+[pins]
+# Frida *runtime* version — only the frida pip package uses this number.
+# frida = "17.11.0"
+
+[active]
+# nvm-style: which frida venv is selected (set by: droidreaver use 17.11.0)
+# frida = "17.11.0"
+
+[ignored]
+tools = ["ghidra", "wireshark", "burp-suite", "httptoolkit"]

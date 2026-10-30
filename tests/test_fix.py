@@ -1,7 +1,7 @@
 """Tests for fix planner."""
 
-from pindroid.doctor import CheckResult
-from pindroid.fix import RISK_LEVELS, FixAction, build_fix_plan, format_impact_cell
+from droidreaver.doctor import CheckResult
+from droidreaver.fix import RISK_LEVELS, FixAction, build_fix_plan, format_impact_cell
 
 
 def test_fix_plan_frida_mismatch():
@@ -11,7 +11,7 @@ def test_fix_plan_frida_mismatch():
             "Frida pin group",
             "fail",
             "Pinned frida 16.1.4 but runtime installed is 17.11.0",
-            fix="pindroid use 16.1.4",
+            fix="droidreaver use 16.1.4",
         ),
     ]
     plan = build_fix_plan(config, checks)
@@ -21,7 +21,7 @@ def test_fix_plan_frida_mismatch():
 def test_fix_plan_adb_missing():
     config = {"pins": {}, "settings": {}, "ignored": {"tools": []}}
     checks = [
-        CheckResult("ADB", "fail", "Not found in PATH", fix="pindroid install adb"),
+        CheckResult("ADB", "fail", "Not found in PATH", fix="droidreaver install adb"),
     ]
     plan = build_fix_plan(config, checks)
     assert any(a.id == "install-adb" for a in plan)

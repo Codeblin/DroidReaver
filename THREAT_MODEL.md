@@ -1,10 +1,10 @@
 # Trust and Supply Chain Model
 
-PinDroid manages Android pentest tools that can inspect devices, proxy traffic, and execute code. Treat it as security-sensitive workstation software.
+DroidReaver manages Android pentest tools that can inspect devices, proxy traffic, and execute code. Treat it as security-sensitive workstation software.
 
-## What PinDroid Downloads
+## What DroidReaver Downloads
 
-Sources are declared in `pindroid/registry.py`.
+Sources are declared in `droidreaver/registry.py`.
 
 | Source type | Examples | Pinning model | Verification today |
 | --- | --- | --- | --- |
@@ -13,13 +13,13 @@ Sources are declared in `pindroid/registry.py`.
 | Direct archives | Android platform-tools | URL selected by platform | TLS transport, incomplete-download rejection, optional registry or lockfile SHA-256 verification |
 | Git clones or source zips | `medusa` | Default branch today | TLS transport, no commit pin by default yet |
 | System package managers | `apt`, `brew` tools | Managed by OS/package manager | Delegated to the package manager |
-| Manual tools | Burp Suite, Ghidra, Wireshark | User-managed | Outside PinDroid automation |
+| Manual tools | Burp Suite, Ghidra, Wireshark | User-managed | Outside DroidReaver automation |
 
 ## Integrity Guarantees
 
-PinDroid downloads to a temporary `.part` file and only moves the archive into place after the response size matches `Content-Length`. Downloaded artifact SHA-256 digests are recorded in tool install metadata and copied into `pindroid.lock.toml`.
+DroidReaver downloads to a temporary `.part` file and only moves the archive into place after the response size matches `Content-Length`. Downloaded artifact SHA-256 digests are recorded in tool install metadata and copied into `droidreaver.lock.toml`.
 
-For direct downloads, the registry can provide `download_sha256`; when present, PinDroid verifies it before extraction and aborts on mismatch. For GitHub Release downloads, PinDroid looks for common upstream checksum assets such as `SHA256SUMS`, `checksums.txt`, or `<artifact>.sha256` and verifies the selected asset when a matching checksum is found. During `pindroid restore`, lockfile SHA-256 values are enforced for direct and GitHub Release artifacts.
+For direct downloads, the registry can provide `download_sha256`; when present, DroidReaver verifies it before extraction and aborts on mismatch. For GitHub Release downloads, DroidReaver looks for common upstream checksum assets such as `SHA256SUMS`, `checksums.txt`, or `<artifact>.sha256` and verifies the selected asset when a matching checksum is found. During `droidreaver restore`, lockfile SHA-256 values are enforced for direct and GitHub Release artifacts.
 
 Archive extraction rejects members that would write outside the target extraction directory.
 
@@ -37,7 +37,7 @@ Roadmap:
 
 ## Credentials and Network Calls
 
-PinDroid uses network access for:
+DroidReaver uses network access for:
 
 - PyPI metadata and package installs
 - GitHub Releases API calls
@@ -45,24 +45,24 @@ PinDroid uses network access for:
 - Direct vendor downloads such as Android platform-tools
 - Package manager calls such as `apt`, `brew`, or `npm`
 
-`GITHUB_TOKEN`, when set, is sent only as an Authorization header to the GitHub API/download requests made by PinDroid's GitHub helpers. It is not written to the lockfile or config by PinDroid.
+`GITHUB_TOKEN`, when set, is sent only as an Authorization header to the GitHub API/download requests made by DroidReaver's GitHub helpers. It is not written to the lockfile or config by DroidReaver.
 
-There is no telemetry or analytics phone-home behavior. Release checks and package metadata lookups happen only to resolve versions, status, installs, and updates. Use commands like `pindroid status --offline` when you need to avoid version-check network calls.
+There is no telemetry or analytics phone-home behavior. Release checks and package metadata lookups happen only to resolve versions, status, installs, and updates. Use commands like `droidreaver status --offline` when you need to avoid version-check network calls.
 
 ## Privileges
 
-PinDroid should not require host root/admin privileges for normal repo-local use. Some system package manager actions may invoke `sudo` on Linux because `apt` requires it. Target devices may need root for Frida attach workflows; that is device-side privilege, not host privilege.
+DroidReaver should not require host root/admin privileges for normal repo-local use. Some system package manager actions may invoke `sudo` on Linux because `apt` requires it. Target devices may need root for Frida attach workflows; that is device-side privilege, not host privilege.
 
-`pindroid fix --aggressive` may update multiple registered tools. It should not delete engagement data, rewrite unrelated user files, or run privileged host commands except through explicit package-manager paths.
+`droidreaver fix --aggressive` may update multiple registered tools. It should not delete engagement data, rewrite unrelated user files, or run privileged host commands except through explicit package-manager paths.
 
 ## Local Data Boundaries
 
-PinDroid stores managed tools and cache data under the configured install directory, commonly `./.pindroid/` for repo-local workspaces or `~/.pindroid/` for global state. Commands such as `pull`, `screenshot`, proxy setup, and logcat operate locally unless the underlying tool is explicitly configured by the user to send data elsewhere.
+DroidReaver stores managed tools and cache data under the configured install directory, commonly `./.droidreaver/` for repo-local workspaces or `~/.droidreaver/` for global state. Commands such as `pull`, `screenshot`, proxy setup, and logcat operate locally unless the underlying tool is explicitly configured by the user to send data elsewhere.
 
-Do not store client secrets, target app data, screenshots, or packet captures in a public repository. `.pindroid/tools/` and cache directories are intended to be ignored by git.
+Do not store client secrets, target app data, screenshots, or packet captures in a public repository. `.droidreaver/tools/` and cache directories are intended to be ignored by git.
 
 ## Reproducibility
 
-`pindroid.lock.toml` is a reproducibility and audit feature. Two users restoring from the same lockfile should converge on the same PinDroid-managed tool versions where upstream sources still provide the referenced artifacts. For direct and GitHub Release artifacts, recorded SHA-256 digests are enforced during restore so an upstream artifact changing under the same version fails closed instead of silently changing the environment.
+`droidreaver.lock.toml` is a reproducibility and audit feature. Two users restoring from the same lockfile should converge on the same DroidReaver-managed tool versions where upstream sources still provide the referenced artifacts. For direct and GitHub Release artifacts, recorded SHA-256 digests are enforced during restore so an upstream artifact changing under the same version fails closed instead of silently changing the environment.
 
 For stronger chain-of-custody, keep the lockfile with engagement notes and record any manual tools, emulator image, device build, and Frida server architecture used during testing.

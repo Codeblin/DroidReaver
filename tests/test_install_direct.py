@@ -6,19 +6,19 @@ from pathlib import Path
 
 import pytest
 
-from pindroid import installer
-from pindroid.config import META_KEY
-from pindroid.installer import InstallError, install_tools
-from pindroid.registry import Tool, get_tool
+from droidreaver import installer
+from droidreaver.config import META_KEY
+from droidreaver.installer import InstallError, install_tools
+from droidreaver.registry import Tool, get_tool
 
 
 def _cfg(root: Path) -> dict:
     return {
-        "settings": {"install_dir": ".pindroid/tools"},
+        "settings": {"install_dir": ".droidreaver/tools"},
         "pins": {},
         "ignored": {"tools": []},
         "active": {},
-        META_KEY: {"root": str(root), "path": str(root / "pindroid.toml")},
+        META_KEY: {"root": str(root), "path": str(root / "droidreaver.toml")},
     }
 
 
@@ -58,7 +58,7 @@ def test_install_direct_downloads_and_links(tmp_path, monkeypatch):
     installer._install_direct(get_tool("adb"), cfg)
 
     assert "platform-tools-latest-linux.zip" in captured["url"]
-    bin_dir = tmp_path / ".pindroid" / "tools" / "adb" / "bin"
+    bin_dir = tmp_path / ".droidreaver" / "tools" / "adb" / "bin"
     assert (bin_dir / "adb").is_file()
 
 
@@ -123,7 +123,7 @@ def test_install_direct_writes_integrity_metadata(tmp_path, monkeypatch):
 
     installer._install_direct(tool, cfg)
 
-    metadata = tmp_path / ".pindroid" / "tools" / "sample" / ".pindroid-install.json"
+    metadata = tmp_path / ".droidreaver" / "tools" / "sample" / ".droidreaver-install.json"
     text = metadata.read_text(encoding="utf-8")
     assert '"sha256": "0000000000000000000000000000000000000000000000000000000000000000"' in text
     assert '"verified": true' in text

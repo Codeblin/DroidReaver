@@ -6,7 +6,7 @@ import hashlib
 import json
 from pathlib import Path
 
-from pindroid.config import install_dir
+from droidreaver.config import install_dir
 
 MEDUSA_ROOT_MODULE = "modules/root_detection/anti_root.med"
 MEDUSA_ROOT_SPEC = f"medusa:{MEDUSA_ROOT_MODULE}"
@@ -29,7 +29,7 @@ def parse_med_module(med_path: Path) -> str:
 
 def _cache_path(key: str) -> Path:
     digest = hashlib.sha256(key.encode()).hexdigest()[:16]
-    cache = Path.home() / ".pindroid" / "cache" / "medusa-js"
+    cache = Path.home() / ".droidreaver" / "cache" / "medusa-js"
     cache.mkdir(parents=True, exist_ok=True)
     return cache / f"{digest}.js"
 
@@ -60,7 +60,7 @@ def resolve_bypass_script(config: dict, spec: str, scripts_dir: Path) -> Path:
     """Resolve a script spec to a filesystem path.
 
     Spec formats:
-      - plain.js           → bundled under pindroid/scripts/
+      - plain.js           → bundled under droidreaver/scripts/
       - medusa:modules/…  → live Medusa install (cached), else bundled fallback
     """
     if spec.startswith("medusa:"):

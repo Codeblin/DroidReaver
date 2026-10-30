@@ -1,12 +1,12 @@
-# Contributing to PinDroid
+# Contributing to DroidReaver
 
-Thanks for helping make PinDroid more reliable for real Android security work.
+Thanks for helping make DroidReaver more reliable for real Android security work.
 
 ## Local Setup
 
 ```bash
-git clone https://github.com/Codeblin/pindroid.git
-cd pindroid
+git clone https://github.com/Codeblin/droidreaver.git
+cd droidreaver
 python -m pip install -e ".[dev]"
 python -m pytest
 ```
@@ -14,7 +14,7 @@ python -m pytest
 Run coverage locally:
 
 ```bash
-python -m pytest --cov=pindroid --cov-report=term-missing
+python -m pytest --cov=droidreaver --cov-report=term-missing
 ```
 
 ## Development Expectations
@@ -29,7 +29,7 @@ python -m pytest --cov=pindroid --cov-report=term-missing
 
 Most contributions will be a registry entry plus a test.
 
-1. Add a `Tool(...)` entry in `pindroid/registry.py`.
+1. Add a `Tool(...)` entry in `droidreaver/registry.py`.
 2. Pick the narrowest install method: `pip`, `github_release`, `direct`, `npm`, `apt`, `brew`, `git`, or `manual`.
 3. Add `depends_on` for required tools, for example `apk-mitm` depends on `apktool`.
 4. Add `pin_with` only when versions must move together.
@@ -61,8 +61,8 @@ Before opening a PR:
 
 ```bash
 python -m pytest
-pindroid --help
-pindroid status --offline
+droidreaver --help
+droidreaver status --offline
 ```
 
 If your change affects device flows, include the emulator/device setup you tested against, for example rooted AVD, Genymotion, or Corellium.

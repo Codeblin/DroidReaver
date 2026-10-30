@@ -1,48 +1,60 @@
-# Migrating from DexMachina to PinDroid
+# Migrating from DexMachina to DroidReaver
 
-DexMachina has been renamed to **PinDroid**.
+DexMachina has been renamed to **DroidReaver**.
 
 The maintained package and CLI are now:
 
 ```bash
-pipx install pindroid
-pindroid --help
+pipx install droidreaver
+droidreaver --help
 ```
 
 The old `dexmachina` PyPI package receives one final transition release that
-depends on `pindroid` and keeps the old `dexmachina` command as a compatibility
+depends on `droidreaver` and keeps the old `dexmachina` command as a compatibility
 wrapper. It prints a deprecation notice on every invocation.
 
 ## What changed
 
 | Old | New |
 | --- | --- |
-| `dexmachina` PyPI package | `pindroid` PyPI package |
-| `dexmachina` CLI | `pindroid` CLI |
-| `python -m dexmachina` | `python -m pindroid` |
-| `dexmachina.toml` | `pindroid.toml` |
-| `dexmachina.lock.toml` | `pindroid.lock.toml` |
-| `.dexmachina/` workspace | `.pindroid/` workspace |
-| `DEXMACHINA_NO_BANNER` | `PINDROID_NO_BANNER` |
+| `dexmachina` PyPI package | `droidreaver` PyPI package |
+| `dexmachina` CLI | `droidreaver` CLI |
+| `python -m dexmachina` | `python -m droidreaver` |
+| `dexmachina.toml` | `droidreaver.toml` |
+| `dexmachina.lock.toml` | `droidreaver.lock.toml` |
+| `.dexmachina/` workspace | `.droidreaver/` workspace |
+| `DEXMACHINA_NO_BANNER` | `DROIDREAVER_NO_BANNER` |
 
 ## Recommended upgrade
 
 ```bash
 pipx uninstall dexmachina
-pipx install pindroid
-pindroid --help
+pipx install droidreaver
+droidreaver --help
 ```
 
 For virtual environments:
 
 ```bash
 python -m pip uninstall dexmachina
-python -m pip install pindroid
-pindroid --help
+python -m pip install droidreaver
+droidreaver --help
 ```
+
+## Workspace migration
+
+If you have an old workspace, rename the files and directory:
+
+```bash
+mv dexmachina.toml droidreaver.toml
+mv dexmachina.lock.toml droidreaver.lock.toml
+mv .dexmachina .droidreaver
+```
+
+Then update `install_dir` inside `droidreaver.toml` if it still points at the old path.
 
 ## PyPI status
 
 After the final `dexmachina` transition release is published, the old PyPI
 project should be archived, not deleted. Archiving keeps the name reserved and
-visible while signalling that future work has moved to PinDroid.
+visible while signalling that future work has moved to DroidReaver.

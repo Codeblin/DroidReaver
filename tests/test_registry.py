@@ -2,7 +2,7 @@
 
 import pytest
 
-from pindroid.registry import CycleError, get_pin_group, resolve_install_order, topological_sort
+from droidreaver.registry import CycleError, get_pin_group, resolve_install_order, topological_sort
 
 
 def test_topological_sort_dependencies_first():
@@ -25,7 +25,7 @@ def test_r2frida_includes_radare2():
 
 
 def test_install_all_order_is_stable():
-    from pindroid.registry import TOOLS
+    from droidreaver.registry import TOOLS
 
     names = list(TOOLS.keys())
     order = topological_sort(names)

@@ -1,6 +1,6 @@
 """Tests for version comparison utilities."""
 
-from pindroid.utils import (
+from droidreaver.utils import (
     compare_versions,
     find_git,
     normalize_version,

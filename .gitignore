@@ -20,12 +20,12 @@ venv/
 .venv/
 env/
 
-# PinDroid workspace (downloaded tools, caches, repo-local venvs)
-.pindroid/
+# DroidReaver workspace (downloaded tools, caches, repo-local venvs)
+.droidreaver/
 
-# Local project config (from `pindroid init` / `pindroid lock` — user-specific)
-pindroid.toml
-pindroid.lock.toml
+# Local project config (from `droidreaver init` / `droidreaver lock` — user-specific)
+droidreaver.toml
+droidreaver.lock.toml
 
 # IDE / editor
 .idea/

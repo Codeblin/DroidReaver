@@ -1,4 +1,4 @@
-"""ASCII art banner and terminal theme for PinDroid."""
+"""ASCII art banner and terminal theme for DroidReaver."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ from rich.style import Style
 from rich.table import Table
 from rich.text import Text
 
-from pindroid import __version__
+from droidreaver import __version__
 
 F = TypeVar("F", bound=Callable)
 
@@ -27,17 +27,17 @@ C_DIM = "#3a6652"          # muted green
 C_GLOW = "#39ff14"         # neon
 
 LOGO = r"""
-  ____ ___ _   _
- |  _ \_ _| \ | |
- | |_) | ||  \| |
- |  __/| || |\  |
- |_|  |___|_| \_|
-
   ____  ____   ___ ___ ____
  |  _ \|  _ \ / _ \_ _|  _ \
  | | | | |_) | | | | || | | |
  | |_| |  _ <| |_| | || |_| |
  |____/|_| \_\\___/___|____/
+
+  ____  _____    _ __     _______ ____
+ |  _ \| ____|  / \\ \   / / ____|  _ \
+ | |_) |  _|   / _ \\ \ / /|  _| | |_) |
+ |  _ <| |___ / ___ \\ V / | |___|  _ <
+ |_| \_\_____/_/   \_\_/  |_____|_| \_\
 """
 
 SIGNAL_PANEL = r"""
@@ -57,7 +57,7 @@ TAGLINE = "ANDROID PENTEST ENVIRONMENT"
 
 
 def banner_enabled() -> bool:
-    val = os.environ.get("PINDROID_NO_BANNER", "").lower()
+    val = os.environ.get("DROIDREAVER_NO_BANNER", "").lower()
     return val not in ("1", "true", "yes")
 
 
@@ -88,9 +88,9 @@ def _colorize_panel(art: str) -> Text:
 def render_banner(*, compact: bool = False, version: str = __version__) -> RenderableType:
     if compact:
         line = Text()
-        line.append("[pin] ", style=Style(color=C_ACCENT, bold=True))
-        line.append("Pin", style=Style(color=C_SECONDARY, bold=True))
-        line.append("Droid", style=Style(color=C_PRIMARY, bold=True))
+        line.append("[dr] ", style=Style(color=C_ACCENT, bold=True))
+        line.append("Droid", style=Style(color=C_SECONDARY, bold=True))
+        line.append("Reaver", style=Style(color=C_PRIMARY, bold=True))
         line.append(f"  v{version}  ", style=Style(color=C_DIM))
         line.append("|", style=Style(color=C_DIM))
         line.append(" android pentest environment ", style=Style(color=C_GLOW, italic=True))
@@ -122,7 +122,7 @@ def render_banner(*, compact: bool = False, version: str = __version__) -> Rende
             Group(hero_lockup, Text(""), identity, metadata, Text(""), footer),
             border_style=Style(color=C_PRIMARY),
             padding=(1, 2),
-            title="[bold bright_green][ PINDROID ][/]",
+            title="[bold bright_green][ DROIDREAVER ][/]",
             title_align="center",
         ),
         Rule("[dim]environment online[/]", style=Style(color=C_DIM)),
@@ -173,7 +173,7 @@ def status_table(title: str = "Tool Status") -> Table:
 
 def doctor_table() -> Table:
     table = Table(
-        title="[bold]PinDroid Doctor[/]",
+        title="[bold]DroidReaver Doctor[/]",
         title_style=Style(color=C_ACCENT, bold=True),
         show_header=True,
         header_style=f"bold {C_PRIMARY}",

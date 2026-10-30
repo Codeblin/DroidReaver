@@ -4,8 +4,8 @@ from unittest.mock import patch
 
 import pytest
 
-from pindroid import versions
-from pindroid.versions import (
+from droidreaver import versions
+from droidreaver.versions import (
     FRIDA_COMPANIONS,
     FRIDA_EXACT,
     ensure_frida_venv,

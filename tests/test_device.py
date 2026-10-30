@@ -2,7 +2,7 @@
 
 from unittest.mock import patch
 
-from pindroid.device import (
+from droidreaver.device import (
     FridaServerStatus,
     adb_path,
     device_has_su,
@@ -13,28 +13,28 @@ from pindroid.device import (
 
 
 def test_adb_path_finds_managed_platform_tools(tmp_path, monkeypatch):
-    tools = tmp_path / ".pindroid" / "tools"
+    tools = tmp_path / ".droidreaver" / "tools"
     adb = tools / "adb" / "bin" / "adb"
     adb.parent.mkdir(parents=True)
     adb.write_text("#!/bin/sh\n", encoding="utf-8")
     cfg = {"settings": {"adb_path": "adb", "install_dir": str(tools)}}
 
-    monkeypatch.setattr("pindroid.device.which", lambda _name: None)
-    monkeypatch.setattr("pindroid.device.detect_platform", lambda: "linux")
+    monkeypatch.setattr("droidreaver.device.which", lambda _name: None)
+    monkeypatch.setattr("droidreaver.device.detect_platform", lambda: "linux")
 
     assert adb_path(cfg) == str(adb)
 
 
 def test_device_has_su_true():
     cfg = {"settings": {"adb_path": "adb"}}
-    with patch("pindroid.device.adb_path", return_value="adb"):
-        with patch("pindroid.device.run_cmd") as mock_run:
+    with patch("droidreaver.device.adb_path", return_value="adb"):
+        with patch("droidreaver.device.run_cmd") as mock_run:
             mock_run.return_value.returncode = 0
             mock_run.return_value.stdout = "uid=0(root) gid=0(root)"
             assert device_has_su(cfg) is True
 
 
-def test_get_local_frida_version_uses_pindroid_env(monkeypatch):
+def test_get_local_frida_version_uses_droidreaver_env(monkeypatch):
     captured = {}
 
     def fake_env(config):
@@ -52,8 +52,8 @@ def test_get_local_frida_version_uses_pindroid_env(monkeypatch):
 
         return Result()
 
-    monkeypatch.setattr("pindroid.runtime.build_run_env", fake_env)
-    monkeypatch.setattr("pindroid.device.run_cmd", fake_run)
+    monkeypatch.setattr("droidreaver.runtime.build_run_env", fake_env)
+    monkeypatch.setattr("droidreaver.device.run_cmd", fake_run)
 
     assert get_local_frida_version({"active": {"frida": "17.15.5"}}) == "17.15.5"
     assert captured["cmd"] == "frida --version"
@@ -62,9 +62,9 @@ def test_get_local_frida_version_uses_pindroid_env(monkeypatch):
 
 def test_frida_server_user_reads_root_uid():
     cfg = {"settings": {"adb_path": "adb"}}
-    with patch("pindroid.device.frida_server_pid", return_value="1234"):
-        with patch("pindroid.device.adb_path", return_value="adb"):
-            with patch("pindroid.device.run_cmd") as mock_run:
+    with patch("droidreaver.device.frida_server_pid", return_value="1234"):
+        with patch("droidreaver.device.adb_path", return_value="adb"):
+            with patch("droidreaver.device.run_cmd") as mock_run:
                 mock_run.return_value.returncode = 0
                 mock_run.return_value.stdout = "Uid:\t0\t0\t0\t0\n"
                 assert frida_server_user(cfg) == "root"
@@ -72,11 +72,11 @@ def test_frida_server_user_reads_root_uid():
 
 def test_restart_frida_server_uses_su_when_rooted():
     cfg = {"settings": {"adb_path": "adb"}}
-    with patch("pindroid.device.adb_path", return_value="adb"):
-        with patch("pindroid.device.device_has_su", return_value=True):
-            with patch("pindroid.device._kill_frida_server"):
-                with patch("pindroid.device.run_cmd") as mock_run:
-                    with patch("pindroid.device.frida_server_status") as status:
+    with patch("droidreaver.device.adb_path", return_value="adb"):
+        with patch("droidreaver.device.device_has_su", return_value=True):
+            with patch("droidreaver.device._kill_frida_server"):
+                with patch("droidreaver.device.run_cmd") as mock_run:
+                    with patch("droidreaver.device.frida_server_status") as status:
                         status.side_effect = [
                             FridaServerStatus(running=True, user="shell", device_rooted=True),
                             FridaServerStatus(running=True, user="root", device_rooted=True),

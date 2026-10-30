@@ -1,4 +1,4 @@
-"""Resolve and execute tool CLIs through PinDroid."""
+"""Resolve and execute tool CLIs through DroidReaver."""
 
 from __future__ import annotations
 
@@ -12,14 +12,14 @@ from pathlib import Path
 from rich.console import Console
 from rich.panel import Panel
 
-from pindroid.config import get_setting, install_dir
-from pindroid.registry import FRIDA_PIN_GROUP, TOOLS, Tool, get_tool
-from pindroid.utils import detect_platform, which
-from pindroid.versions import frida_venv_path, get_active_frida_version
+from droidreaver.config import get_setting, install_dir
+from droidreaver.registry import FRIDA_PIN_GROUP, TOOLS, Tool, get_tool
+from droidreaver.utils import detect_platform, which
+from droidreaver.versions import frida_venv_path, get_active_frida_version
 
 _console = Console()
 
-# PinDroid commands — never shadow with tool runners.
+# DroidReaver commands — never shadow with tool runners.
 RESERVED_COMMANDS = frozenset(
     {
         "status",
@@ -68,27 +68,27 @@ class Invocation:
 INVOCATION_META: dict[str, dict[str, str | bool]] = {
     "frida-kill": {
         "requires_args": True,
-        "usage_hint": "pindroid frida-kill -U <package|pid>",
+        "usage_hint": "droidreaver frida-kill -U <package|pid>",
         "summary": "Kill a process on a device via frida",
     },
     "frida-trace": {
         "requires_args": True,
-        "usage_hint": "pindroid frida-trace -U -i com.example.app",
+        "usage_hint": "droidreaver frida-trace -U -i com.example.app",
         "summary": "Trace API calls in a process",
     },
     "apktool": {
         "requires_args": False,
-        "usage_hint": "pindroid apktool d app.apk",
+        "usage_hint": "droidreaver apktool d app.apk",
         "summary": "Decode/rebuild APKs",
     },
     "jadx": {
         "requires_args": False,
-        "usage_hint": "pindroid jadx -d out app.apk",
+        "usage_hint": "droidreaver jadx -d out app.apk",
         "summary": "Decompile APK/DEX to Java",
     },
     "objection": {
         "requires_args": False,
-        "usage_hint": "pindroid objection -g com.example.app explore",
+        "usage_hint": "droidreaver objection -g com.example.app explore",
         "summary": "Runtime mobile exploration (Objection)",
     },
 }
@@ -132,7 +132,7 @@ def frida_venv_bin(config: dict) -> Path | None:
 
 
 def collect_tool_bin_paths(config: dict) -> list[Path]:
-    """All PinDroid-managed bin directories (for PATH augmentation)."""
+    """All DroidReaver-managed bin directories (for PATH augmentation)."""
     paths: list[Path] = []
     venv_bin = frida_venv_bin(config)
     if venv_bin:
@@ -148,7 +148,7 @@ def collect_tool_bin_paths(config: dict) -> list[Path]:
                 paths.append(bin_d)
 
     # Global shim dir for future use
-    shim = Path.home() / ".pindroid" / "bin"
+    shim = Path.home() / ".droidreaver" / "bin"
     if shim.is_dir():
         paths.append(shim)
 
@@ -156,7 +156,7 @@ def collect_tool_bin_paths(config: dict) -> list[Path]:
 
 
 def build_run_env(config: dict) -> dict[str, str]:
-    """Environment with PinDroid tool bins prepended to PATH."""
+    """Environment with DroidReaver tool bins prepended to PATH."""
     env = os.environ.copy()
     prepend = collect_tool_bin_paths(config)
     if prepend:
@@ -164,18 +164,18 @@ def build_run_env(config: dict) -> dict[str, str]:
         env["PATH"] = extra + os.pathsep + env.get("PATH", "")
     java = get_setting(config, "java_path", "java")
     if java:
-        env.setdefault("PINDROID_JAVA", java)
-    env["PINDROID_SHELL"] = "1"
+        env.setdefault("DROIDREAVER_JAVA", java)
+    env["DROIDREAVER_SHELL"] = "1"
     return env
 
 
 def shell_path_hint(config: dict) -> str:
-    """Shell snippet to put ALL PinDroid tool bins on PATH (not just frida)."""
+    """Shell snippet to put ALL DroidReaver tool bins on PATH (not just frida)."""
     paths = collect_tool_bin_paths(config)
     if not paths:
         return (
-            "No PinDroid tools installed yet.\n"
-            "Install some: pindroid up   (or: pindroid install <tool>)"
+            "No DroidReaver tools installed yet.\n"
+            "Install some: droidreaver up   (or: droidreaver install <tool>)"
         )
     joined = os.pathsep.join(str(p) for p in paths)
     if detect_platform() == "windows":
@@ -184,11 +184,11 @@ def shell_path_hint(config: dict) -> str:
             f"set PATH={joined};%PATH%\n"
             "# PowerShell:\n"
             f'$env:PATH = "{joined};$env:PATH"\n'
-            "# Or just open a ready shell:  pindroid shell"
+            "# Or just open a ready shell:  droidreaver shell"
         )
     return (
         f'export PATH="{joined}:$PATH"\n'
-        "# Or just open a ready shell:  pindroid shell"
+        "# Or just open a ready shell:  droidreaver shell"
     )
 
 
@@ -254,7 +254,7 @@ def _detect_shell_kind() -> str:
     if detect_platform() != "windows":
         return "posix"
 
-    override = os.environ.get("PINDROID_SHELL_EXE", "").lower()
+    override = os.environ.get("DROIDREAVER_SHELL_EXE", "").lower()
     if "pwsh" in override:
         return "pwsh"
     if "powershell" in override:
@@ -287,12 +287,12 @@ def pick_user_shell() -> list[str]:
 
     if kind == "cmd":
         comspec = os.environ.get("COMSPEC") or "cmd.exe"
-        # /K keeps cmd open; custom prompt makes the PinDroid shell obvious.
-        return [comspec, "/K", "prompt [PinDroid] $P$G"]
+        # /K keeps cmd open; custom prompt makes the DroidReaver shell obvious.
+        return [comspec, "/K", "prompt [DroidReaver] $P$G"]
 
     exe = (which("pwsh") if kind == "pwsh" else which("powershell")) or which("pwsh") or "powershell"
     ps_prompt = (
-        "function prompt { \"[PinDroid] PS \" "
+        "function prompt { \"[DroidReaver] PS \" "
         "+ $executionContext.SessionState.Path.CurrentLocation + \"> \" }"
     )
     return [exe, "-NoLogo", "-NoExit", "-Command", ps_prompt]
@@ -307,7 +307,7 @@ def can_launch_interactive_shell() -> bool:
 
 
 def launch_shell(config: dict) -> int:
-    """Open an interactive subshell with PinDroid tools on PATH."""
+    """Open an interactive subshell with DroidReaver tools on PATH."""
     env = build_run_env(config)
     argv = pick_user_shell()
     result = subprocess.run(argv, env=env)
@@ -324,7 +324,7 @@ def resolve_executable(config: dict, tool: Tool, executable: str) -> list[str]:
             if found:
                 return [str(found)]
 
-    # 2) PinDroid install_dir/<tool>/bin/
+    # 2) DroidReaver install_dir/<tool>/bin/
     found = _find_binary_in_dir(_tool_install_bin(config, tool.name), executable)
     if found:
         return [str(found)]
@@ -359,9 +359,9 @@ def resolve_executable(config: dict, tool: Tool, executable: str) -> list[str]:
 
     raise RunError(
         f"Cannot find executable '{executable}' for {tool.display_name}.\n"
-        f"Install it: pindroid install {tool.name}\n"
+        f"Install it: droidreaver install {tool.name}\n"
         + (
-            f"Or activate frida venv: pindroid use <version> && pindroid env\n"
+            f"Or activate frida venv: droidreaver use <version> && droidreaver env\n"
             if _is_frida_stack_tool(tool.name)
             else ""
         )
@@ -427,7 +427,7 @@ def list_runnable_tools() -> list[Invocation]:
 
 
 def print_dispatch_hint(inv: Invocation) -> None:
-    """Show PinDroid guidance when a tool is invoked without arguments."""
+    """Show DroidReaver guidance when a tool is invoked without arguments."""
     meta = INVOCATION_META.get(inv.name, {})
     summary = meta.get("summary") or inv.tool.description or inv.tool.display_name
     lines = [
@@ -438,7 +438,7 @@ def print_dispatch_hint(inv: Invocation) -> None:
         lines.append("[yellow]This command requires arguments.[/]")
     if inv.usage_hint:
         lines.append(f"[dim]Example:[/] [cyan]{inv.usage_hint}[/]")
-    lines.append(f"[dim]Full help:[/] [cyan]pindroid {inv.name} --help[/]")
+    lines.append(f"[dim]Full help:[/] [cyan]droidreaver {inv.name} --help[/]")
     _console.print(Panel("\n".join(lines), border_style="#3a6652", padding=(0, 1)))
 
 

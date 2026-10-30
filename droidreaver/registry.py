@@ -1,4 +1,4 @@
-"""Tool registry and dependency graph for PinDroid."""
+"""Tool registry and dependency graph for DroidReaver."""
 
 from __future__ import annotations
 

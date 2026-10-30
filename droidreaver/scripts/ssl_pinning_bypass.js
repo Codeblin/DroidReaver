@@ -3,12 +3,12 @@
  * Hooks common TrustManager, OkHttp, and Conscrypt paths.
  */
 Java.perform(function () {
-    console.log("[pindroid] SSL pinning bypass active");
+    console.log("[droidreaver] SSL pinning bypass active");
 
     function trustAllManagers() {
         var X509TrustManager = Java.use("javax.net.ssl.X509TrustManager");
         var TrustManager = Java.registerClass({
-            name: "com.pindroid.ssl.TrustAllManager",
+            name: "com.droidreaver.ssl.TrustAllManager",
             implements: [X509TrustManager],
             methods: {
                 checkClientTrusted: function () {},
@@ -33,7 +33,7 @@ Java.perform(function () {
             init.call(this, km, managers, sr);
         };
     } catch (e) {
-        console.log("[pindroid] SSLContext.init hook skipped: " + e);
+        console.log("[droidreaver] SSLContext.init hook skipped: " + e);
     }
 
     try {
@@ -46,7 +46,7 @@ Java.perform(function () {
             ocspData,
             tlsSctData
         ) {
-            console.log("[pindroid] TrustManagerImpl bypass: " + host);
+            console.log("[droidreaver] TrustManagerImpl bypass: " + host);
             return untrustedChain;
         };
     } catch (e) {}
@@ -57,7 +57,7 @@ Java.perform(function () {
             hostname,
             peerCertificates
         ) {
-            console.log("[pindroid] OkHttp3 pinner bypass: " + hostname);
+            console.log("[droidreaver] OkHttp3 pinner bypass: " + hostname);
         };
     } catch (e) {}
 
@@ -65,7 +65,7 @@ Java.perform(function () {
         var OkHttpPinner2 = Java.use("okhttp3.CertificatePinner");
         OkHttpPinner2.check.overload("java.lang.String", "[Ljava.security.cert.Certificate;").implementation =
             function (hostname, certs) {
-                console.log("[pindroid] OkHttp3 pinner bypass (certs): " + hostname);
+                console.log("[droidreaver] OkHttp3 pinner bypass (certs): " + hostname);
             };
     } catch (e) {}
 

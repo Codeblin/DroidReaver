@@ -1,12 +1,20 @@
 # Changelog
 
-All notable changes to PinDroid are documented here. This project follows Semantic Versioning while it is pre-1.0, with minor releases allowed to refine CLI behavior.
+All notable changes to DroidReaver are documented here. This project follows Semantic Versioning while it is pre-1.0, with minor releases allowed to refine CLI behavior.
+
+## [Unreleased]
+
+### Changed
+
+- Rename the project and maintained package to **DroidReaver** (`droidreaver` CLI/package).
+- Workspace paths, lockfile, config, env vars, and install metadata now use the `droidreaver` name.
+- Point the legacy `dexmachina` transition package at `droidreaver`.
 
 ## [0.2.0] - 2026-07-17
 
 ### Changed
 
-- Rename the project and maintained package from DexMachina to PinDroid.
+- Rename the project and maintained package from DexMachina to DroidReaver.
 - Add a legacy `dexmachina` transition package for one final inactive PyPI release.
 - Add a migration guide for old installs, scripts, config files, and workspace paths.
 
@@ -15,8 +23,8 @@ All notable changes to PinDroid are documented here. This project follows Semant
 
 ### Fixed
 
-- Resolve PinDroid-managed adb during doctor, fix, and device flows.
-- Run Frida doctor checks through PinDroid's managed environment.
+- Resolve DroidReaver-managed adb during doctor, fix, and device flows.
+- Run Frida doctor checks through DroidReaver's managed environment.
 - Reload config before fix re-checks so active Frida venv changes are visible.
 - Avoid false incomplete-download failures for Google platform-tools decoded responses.
 - Improve GitHub API rate-limit guidance during installs.
@@ -24,7 +32,7 @@ All notable changes to PinDroid are documented here. This project follows Semant
 ### Documentation
 
 - Document Kali-safe pipx installation.
-- Document managed PATH usage with `pindroid shell` and `pindroid env`.
+- Document managed PATH usage with `droidreaver shell` and `droidreaver env`.
 - Document `GITHUB_TOKEN` retry path for GitHub API rate limits.
 
 ## [0.1.0] - 2026-07-14

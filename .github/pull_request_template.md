@@ -5,8 +5,8 @@ Describe the change and why it matters.
 ## Testing
 
 - [ ] `python -m pytest`
-- [ ] `pindroid --help`
-- [ ] `pindroid status --offline`
+- [ ] `droidreaver --help`
+- [ ] `droidreaver status --offline`
 
 ## Device or Emulator Coverage
 

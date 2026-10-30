@@ -1,10 +1,10 @@
-"""Tests for the interactive PinDroid console (REPL)."""
+"""Tests for the interactive DroidReaver console (REPL)."""
 
 import subprocess
 from types import SimpleNamespace
 
-import pindroid.console as console_mod
-from pindroid.console import PinDroidConsole
+import droidreaver.console as console_mod
+from droidreaver.console import DroidReaverConsole
 
 
 def _make(monkeypatch, devices=None, apps=None):
@@ -13,7 +13,7 @@ def _make(monkeypatch, devices=None, apps=None):
     monkeypatch.setattr(
         console_mod, "list_android_apps", lambda cfg, serial=None: list(apps or [])
     )
-    return PinDroidConsole(config={}, serial=None)
+    return DroidReaverConsole(config={}, serial=None)
 
 
 def test_prompt_reflects_state(monkeypatch):

@@ -1,6 +1,6 @@
 """Tests for tool runtime dispatch."""
 
-from pindroid.runtime import (
+from droidreaver.runtime import (
     RESERVED_COMMANDS,
     lookup_invocation,
     list_runnable_tools,
@@ -33,7 +33,7 @@ def test_frida_kill_requires_args():
 
 
 def test_prepare_dispatch_empty_frida_kill():
-    from pindroid.runtime import prepare_dispatch_args
+    from droidreaver.runtime import prepare_dispatch_args
 
     inv = lookup_invocation("frida-kill")
     assert inv is not None
@@ -42,7 +42,7 @@ def test_prepare_dispatch_empty_frida_kill():
 
 
 def test_prepare_dispatch_passes_through():
-    from pindroid.runtime import prepare_dispatch_args
+    from droidreaver.runtime import prepare_dispatch_args
 
     inv = lookup_invocation("frida-kill")
     assert inv is not None
