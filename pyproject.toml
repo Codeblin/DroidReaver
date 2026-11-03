@@ -61,7 +61,7 @@ where = ["."]
 include = ["droidreaver*"]
 
 [tool.setuptools.package-data]
-droidreaver = ["../droidreaver.toml.default", "scripts/*.js"]
+droidreaver = ["../droidreaver.toml.default", "scripts/*.js", "banner_art.txt"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -44,3 +44,8 @@ Thumbs.db
 *.p12
 .env
 .env.*
+
+# DroidReaver - downloaded tools & caches (managed)
+.droidreaver/tools/
+.droidreaver/cache/
+.droidreaver/venvs/

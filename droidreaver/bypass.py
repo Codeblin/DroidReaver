@@ -11,7 +11,16 @@ from typing import Literal
 
 from rich.console import Console
 
-from droidreaver.device import force_stop_app, frida_server_status, launch_app, print_frida_attach_troubleshooting
+from droidreaver.device import (
+    force_stop_app,
+    frida_server_status,
+    launch_app,
+    list_installed_packages,
+    pidof_package,
+    print_frida_attach_troubleshooting,
+    process_name_pids,
+    relax_selinux,
+)
 from droidreaver.medusa_modules import MEDUSA_ROOT_SPEC, medusa_install_dir, resolve_bypass_script
 from droidreaver.registry import get_tool
 from droidreaver.runtime import RunError, build_run_env, resolve_executable
@@ -62,7 +71,7 @@ RECIPES: dict[RecipeId, BypassRecipe] = {
     "ssl": BypassRecipe(
         id="ssl",
         title="SSL Pinning Bypass",
-        summary="Disable TLS certificate pinning so HTTPS traffic can be intercepted.",
+        summary="Java + OkHttp/TrustKit/NSC/WebView + native libssl verify hooks.",
         objection_commands=("android sslpinning disable",),
         frida_scripts=("ssl_pinning_bypass.js",),
     ),
@@ -90,27 +99,9 @@ class BypassError(Exception):
     """Bypass preset could not run."""
 
 
-def list_android_apps(config: dict, *, serial: str | None = None) -> list[AndroidApp]:
-    """Parse `frida-ps -Uai` into structured app rows."""
-    if not _tool_ready(config, "frida-tools", "frida-ps"):
-        return []
-
-    env = build_run_env(config)
-    argv = [resolve_executable(config, get_tool("frida-tools"), "frida-ps")[0], "-Uai"]
-    if serial:
-        argv = [
-            resolve_executable(config, get_tool("frida-tools"), "frida-ps")[0],
-            "-D",
-            serial,
-            "-ai",
-        ]
-
-    result = run_cmd(argv, env=env)
-    if result.returncode != 0:
-        return []
-
+def _parse_frida_ps_apps(stdout: str) -> list[AndroidApp]:
     apps: list[AndroidApp] = []
-    for line in (result.stdout or "").splitlines():
+    for line in stdout.splitlines():
         if line.startswith("PID") or line.startswith("---") or not line.strip():
             continue
         match = _FRIDA_PS_LINE.match(line)
@@ -125,6 +116,47 @@ def list_android_apps(config: dict, *, serial: str | None = None) -> list[Androi
                 identifier=match.group("identifier").strip(),
             )
         )
+    return apps
+
+
+def _list_apps_adb(config: dict, serial: str | None, query: str | None) -> list[AndroidApp]:
+    packages = list_installed_packages(config, serial, query)
+    if not packages:
+        return []
+    pids = process_name_pids(config, serial)
+    apps: list[AndroidApp] = []
+    for pkg in packages:
+        pid = pids.get(pkg)
+        apps.append(AndroidApp(pid=pid, name=pkg.rsplit(".", 1)[-1], identifier=pkg))
+    return apps
+
+
+def _list_apps_frida(config: dict, serial: str | None) -> list[AndroidApp]:
+    if not _tool_ready(config, "frida-tools", "frida-ps"):
+        return []
+    env = build_run_env(config)
+    exe = resolve_executable(config, get_tool("frida-tools"), "frida-ps")[0]
+    argv = [exe, "-D", serial, "-ai"] if serial else [exe, "-Uai"]
+    result = run_cmd(argv, env=env)
+    if result.returncode != 0:
+        return []
+    return _parse_frida_ps_apps(result.stdout or "")
+
+
+def list_android_apps(
+    config: dict,
+    *,
+    serial: str | None = None,
+    query: str | None = None,
+) -> list[AndroidApp]:
+    """List apps via adb (fast). Fall back to frida-ps only if pm list is empty."""
+    apps = _list_apps_adb(config, serial, query)
+    if apps:
+        return apps
+    apps = _list_apps_frida(config, serial)
+    if query:
+        q = query.lower()
+        apps = [a for a in apps if q in a.identifier.lower() or q in a.name.lower()]
     return apps
 
 
@@ -158,21 +190,28 @@ def resolve_android_target(
             spawn=False,
         )
 
-    apps = list_android_apps(config, serial=serial)
     q = query.strip()
     q_lc = q.lower()
+    if "." in q:
+        pid = pidof_package(config, q, serial)
+        display = q.rsplit(".", 1)[-1]
+        if spawn:
+            return ResolvedTarget(q, q, pid, display, spawn=True)
+        return ResolvedTarget(q, q, pid, display, spawn=False)
+
+    apps = list_android_apps(config, serial=serial, query=q)
 
     by_identifier = [a for a in apps if a.identifier.lower() == q_lc]
     if len(by_identifier) == 1:
         app = by_identifier[0]
-        if spawn or not app.running:
+        if spawn:
             return ResolvedTarget(q, app.identifier, None, app.name, spawn=True)
         return ResolvedTarget(q, app.identifier, app.pid, app.name, spawn=False)
 
     by_name = [a for a in apps if a.name.lower() == q_lc]
     if len(by_name) == 1:
         app = by_name[0]
-        if spawn or not app.running:
+        if spawn:
             return ResolvedTarget(q, app.identifier, None, app.name, spawn=True)
         return ResolvedTarget(q, app.identifier, app.pid, app.name, spawn=False)
 
@@ -183,7 +222,7 @@ def resolve_android_target(
     ]
     if len(partial) == 1:
         app = partial[0]
-        if spawn or not app.running:
+        if spawn:
             return ResolvedTarget(q, app.identifier, None, app.name, spawn=True)
         return ResolvedTarget(q, app.identifier, app.pid, app.name, spawn=False)
 
@@ -277,25 +316,16 @@ def preflight(config: dict, *, network: bool, serial: str | None = None) -> None
         )
     elif status.running and not status.device_rooted:
         console.print(
-            "[yellow]Warning:[/] device does not appear rooted — Frida attach to "
-            "third-party apps usually fails.\n"
+            "[yellow]Warning:[/] no root path yet (need Magisk [cyan]su[/] or emulator "
+            "[cyan]adb root[/]) — Frida attach to third-party apps usually fails.\n"
+            "  [dim]Fix:[/] [cyan]droidreaver device ready[/]\n"
         )
 
-    env = build_run_env(config)
-    frida_ps = None
-    if _tool_ready(config, "frida-tools", "frida-ps"):
-        try:
-            frida_ps = resolve_executable(config, get_tool("frida-tools"), "frida-ps")[0]
-        except RunError:
-            pass
-    if frida_ps:
-        transport = ["-D", serial] if serial else ["-U"]
-        result = run_cmd([frida_ps, *transport], env=env)
-        if result.returncode != 0:
-            console.print(
-                "[yellow]Warning:[/] frida-ps failed — is frida-server running?\n"
-                "  [dim]Try:[/] [cyan]droidreaver push-server[/]"
-            )
+    if not status.running:
+        console.print(
+            "[yellow]Warning:[/] frida-server is not running.\n"
+            "  [dim]Fix:[/] [cyan]droidreaver device ready[/]\n"
+        )
 
 
 def build_objection_argv(
@@ -348,10 +378,9 @@ def build_frida_argv(
     if foremost:
         argv.append("-F")
     elif target.spawn:
-        # Frida 17+: auto-resumes after spawn; --no-pause was removed (--pause opts in).
         argv.extend(["-f", target.identifier])
     elif target.identifier and target.identifier != "frontmost":
-        # Android: package identifier beats PID (PIDs churn; wrong process is common).
+        # Package attach lets Frida pick the 32/64-bit world that matches the app.
         argv.extend(["-N", target.identifier])
     elif target.pid is not None:
         argv.extend(["-p", str(target.pid)])
@@ -393,27 +422,15 @@ def _wait_for_running_app(
     package: str,
     *,
     serial: str | None,
-    timeout_s: float = 18.0,
+    timeout_s: float = 30.0,
 ) -> ResolvedTarget | None:
-    """Poll frida-ps until the package is running, then return an attach target."""
+    """Poll pidof until the package is running, then return an attach target."""
     deadline = time.monotonic() + timeout_s
     while time.monotonic() < deadline:
-        try:
-            target = resolve_android_target(
-                config, package, spawn=False, serial=serial, foremost=False
-            )
-        except BypassError:
-            target = None
-        if target and target.pid is not None:
-            # Attach by package (-N), not PID — more reliable after adb launch.
-            return ResolvedTarget(
-                target.query,
-                target.identifier,
-                None,
-                target.display_name,
-                spawn=False,
-            )
-        time.sleep(1.0)
+        pid = pidof_package(config, package, serial)
+        if pid is not None:
+            return ResolvedTarget(package, package, pid, package.rsplit(".", 1)[-1], spawn=False)
+        time.sleep(0.5)
     return None
 
 
@@ -422,18 +439,47 @@ def _print_attach_failure_help(package: str, serial: str | None, config: dict) -
 
 
 def _print_spawn_failure_help(package: str, serial: str | None) -> None:
-    serial_flag = f" -S {serial}" if serial else ""
+    serial_flag = f" --device {serial}" if serial else ""
     console.print(
-        "\n[yellow]Spawn failed[/] — this app may block Frida cold start.\n\n"
-        "[bold]Try attach mode[/] (open the app on the device first, no --spawn):\n"
-        f"  [cyan]droidreaver hook -n {package}{serial_flag}[/]\n\n"
-        "[bold]Or retry spawn[/] after a clean stop:\n"
-        f"  [cyan]adb shell am force-stop {package}[/]\n"
-        f"  [cyan]droidreaver hook -n {package} --spawn{serial_flag}[/]\n\n"
-        "[bold]Or Objection[/] (sometimes works when Frida spawn does not):\n"
-        f"  [cyan]droidreaver hook -n {package} --objection --spawn{serial_flag}[/]\n\n"
-        "[dim]Physical devices and hardened apps often need attach, not spawn.[/]"
+        "\n[yellow]Frida spawn (-f) failed.[/] Open the app on the device, then attach:\n"
+        f"  [cyan]droidreaver hook -n {package}{serial_flag}[/]\n"
+        "[dim]Only use [cyan]--spawn[/] when you need a Frida cold start.[/]"
     )
+
+
+def _ensure_running_for_attach(
+    config: dict,
+    target: ResolvedTarget,
+    *,
+    serial: str | None,
+) -> ResolvedTarget:
+    """If the app is stopped, start it with adb and wait for a PID. Never Frida -f."""
+    if target.pid is not None:
+        console.print(f"[dim]App is running (pid {target.pid}).[/]")
+        return target
+    console.print(
+        "[yellow]App is not running.[/] Launching with adb, then attaching "
+        "(Frida [cyan]-f[/] spawn is not used unless you pass [cyan]--spawn[/])."
+    )
+    try:
+        launch_app(config, target.identifier, serial=serial)
+    except Exception as e:  # noqa: BLE001
+        raise BypassError(f"Could not launch {target.identifier}: {e}") from e
+    waited = _wait_for_running_app(config, target.identifier, serial=serial)
+    if waited is None:
+        raise BypassError(
+            f"{target.identifier} did not start.\n"
+            "Tap the app on the emulator so it stays in the foreground, then run [cyan]hook[/] again."
+        )
+    console.print("[dim]Waiting 2s for the process to settle before Frida attach…[/]")
+    time.sleep(2.0)
+    pid = pidof_package(config, target.identifier, serial)
+    if pid is not None:
+        waited = ResolvedTarget(
+            waited.query, waited.identifier, pid, waited.display_name, spawn=False
+        )
+    console.print(f"[green]✓[/] App running as pid [bold]{waited.pid}[/]")
+    return waited
 
 
 def _run_frida_session(argv: list[str], env: dict) -> tuple[int, float]:
@@ -452,9 +498,7 @@ def _attempt_attach_after_spawn_failure(
     network: bool,
 ) -> int | None:
     """Launch the app via adb and attach with the same scripts. Returns exit code or None."""
-    console.print(
-        "[yellow]Spawn failed[/] — switching to attach mode (package name, not PID)…"
-    )
+    console.print("[yellow]Spawn failed[/] — launching the app with adb and attaching by PID…")
 
     apps = list_android_apps(config, serial=serial)
     running = next((a for a in apps if a.identifier == package and a.running), None)
@@ -527,8 +571,10 @@ def run_bypass(
     if chosen == "frida" and not _tool_ready(config, "frida", "frida"):
         raise BypassError("Frida not installed. Run: droidreaver install frida")
 
+    console.print("[dim]1/4 Checking frida-server / root path…[/]")
     preflight(config, network=network, serial=serial)
 
+    console.print("[dim]2/4 Resolving target PID…[/]")
     if foremost:
         target = resolve_android_target(
             config, package, spawn=False, serial=serial, foremost=True
@@ -537,13 +583,11 @@ def run_bypass(
         target = resolve_android_target(
             config, package, spawn=spawn, serial=serial, foremost=False
         )
-        if target.spawn and not spawn:
-            console.print(
-                "[yellow]App not running — switching to spawn mode.[/] "
-                "[dim](Use [cyan]--spawn[/] explicitly next time.)[/]"
-            )
+        if not spawn:
+            target = _ensure_running_for_attach(config, target, serial=serial)
 
     print_recipe_banner(recipe, target, chosen)
+    console.print("[dim]3/4 Building Frida command…[/]")
     env = build_run_env(config)
 
     if chosen == "objection":
@@ -579,6 +623,16 @@ def run_bypass(
         except Exception as e:  # noqa: BLE001
             console.print(f"[yellow]Warning:[/] could not force-stop app: {e}")
 
+    console.print("[dim]4/4 Attaching Frida (session stays in this window)…[/]")
+    relax_selinux(config, serial)
+    live_pid = pidof_package(config, target.identifier, serial)
+    if live_pid and live_pid != target.pid and not target.spawn:
+        target = ResolvedTarget(
+            target.query, target.identifier, live_pid, target.display_name, False
+        )
+        argv = build_frida_argv(
+            config, recipe, target, serial=serial, network=network, foremost=foremost
+        )
     console.print(f"[dim]Running:[/] {' '.join(argv)}\n")
 
     try:
@@ -602,6 +656,33 @@ def run_bypass(
                 return attach_code if attach_code is not None else code
             return code
         code, elapsed = _run_frida_session(argv, env)
+        if code != 0 and elapsed < 15 and recipe.id == "all":
+            console.print(
+                "[yellow]SSL+root scripts dropped the session — retrying SSL-only attach…[/]"
+            )
+            time.sleep(1.5)
+            pid = pidof_package(config, target.identifier, serial)
+            if pid is None:
+                console.print("[dim]App died; relaunching…[/]")
+                launch_app(config, target.identifier, serial=serial)
+                recovered = _wait_for_running_app(config, target.identifier, serial=serial)
+                pid = recovered.pid if recovered else None
+            if pid is not None:
+                ssl_target = ResolvedTarget(
+                    target.query, target.identifier, pid, target.display_name, False
+                )
+                ssl_argv = build_frida_argv(
+                    config,
+                    RECIPES["ssl"],
+                    ssl_target,
+                    serial=serial,
+                    network=network,
+                    foremost=False,
+                )
+                console.print(f"[dim]Running:[/] {' '.join(ssl_argv)}\n")
+                code, elapsed = _run_frida_session(ssl_argv, env)
+                if code == 0:
+                    return code
         if code != 0 and elapsed < 15:
             print_frida_attach_troubleshooting(
                 config, serial=serial, package=target.identifier

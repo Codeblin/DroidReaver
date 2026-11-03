@@ -21,6 +21,18 @@ def test_help_has_sections():
     assert "Arsenal — Static Analysis" in result.output
     assert "status" in result.output
     assert "frida" in result.output
+    assert "ANDROID PENTEST ENVIRONMENT" not in result.output
+    assert "environment online" not in result.output
+    assert "Type droidreaver --help" not in result.output
+
+
+def test_no_args_shows_banner_and_help_hint():
+    runner = CliRunner()
+    result = runner.invoke(main, [])
+    assert result.exit_code == 0
+    assert "droidreaver --help" in result.output
+    assert "Arsenal — Dynamic Analysis" not in result.output
+    assert "Get started" not in result.output
 
 
 def test_run_passes_flags_to_tool():

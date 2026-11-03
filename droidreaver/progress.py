@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import threading
 from contextlib import contextmanager
 from typing import Callable, Generator
 
@@ -17,6 +18,20 @@ from rich.progress import (
 
 UpdateFn = Callable[[str | None], None]
 AdvanceFn = Callable[[int], None]
+
+_tls = threading.local()
+
+
+def _live_depth() -> int:
+    return getattr(_tls, "depth", 0)
+
+
+def _enter_live() -> None:
+    _tls.depth = _live_depth() + 1
+
+
+def _exit_live() -> None:
+    _tls.depth = max(0, _live_depth() - 1)
 
 
 def _spinner_columns(*, show_bar: bool) -> list:
@@ -40,19 +55,37 @@ def work_spinner(
     message: str,
     console: Console | None = None,
 ) -> Generator[UpdateFn, None, None]:
-    """Indeterminate spinner for a single blocking operation."""
+    """Indeterminate spinner for a single blocking operation.
+
+    Nested calls (e.g. push-server inside ``fix``) must not start a second
+    Rich Live display — that flickers two spinners hundreds of times a second.
+    """
     con = console or Console()
+
+    if _live_depth() > 0:
+        con.print(f"[dim]{message}[/]")
+
+        def nested_update(description: str | None = None) -> None:
+            if description and description != message:
+                con.print(f"[dim]{description}[/]")
+
+        yield nested_update
+        return
 
     def update(description: str | None = None) -> None:
         progress.update(task, description=description or message)
 
-    with Progress(
-        *_spinner_columns(show_bar=False),
-        console=con,
-        transient=True,
-    ) as progress:
-        task = progress.add_task(message, total=None)
-        yield update
+    _enter_live()
+    try:
+        with Progress(
+            *_spinner_columns(show_bar=False),
+            console=con,
+            transient=True,
+        ) as progress:
+            task = progress.add_task(message, total=None)
+            yield update
+    finally:
+        _exit_live()
 
 
 @contextmanager
@@ -70,10 +103,14 @@ def work_progress(
     def advance(step: int = 1) -> None:
         progress.advance(task, step)
 
-    with Progress(
-        *_spinner_columns(show_bar=True),
-        console=con,
-        transient=True,
-    ) as progress:
-        task = progress.add_task(message, total=total)
-        yield update, advance
+    _enter_live()
+    try:
+        with Progress(
+            *_spinner_columns(show_bar=True),
+            console=con,
+            transient=True,
+        ) as progress:
+            task = progress.add_task(message, total=total)
+            yield update, advance
+    finally:
+        _exit_live()

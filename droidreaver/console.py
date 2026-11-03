@@ -11,7 +11,9 @@ works on Windows/macOS/Linux.
 from __future__ import annotations
 
 import cmd
+import os
 import shlex
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -20,6 +22,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
+from droidreaver.banner import print_banner
 from droidreaver.bypass import BypassError, list_android_apps, run_bypass
 from droidreaver.device import (
     DeviceError,
@@ -28,18 +31,55 @@ from droidreaver.device import (
     list_devices,
     push_frida_server,
 )
+from droidreaver.progress import work_spinner
 from droidreaver.runtime import RunError, build_run_env, run_invocation
 from droidreaver.versions import get_active_frida_version
 
 console = Console()
 
-BANNER = r"""
-[bold #00ff41]⚔  DroidReaver Console[/]  [dim]— interactive Android pentest shell[/]
-"""
-
 _GREEN = "\033[92m"
 _DIM = "\033[2m"
 _RESET = "\033[0m"
+
+
+def _resolve_exe(executable: str) -> str:
+    path = Path(executable)
+    if path.is_file():
+        return str(path.resolve())
+    found = shutil.which(executable)
+    return str(Path(found).resolve()) if found else executable
+
+
+def spawn_in_new_window(argv: list[str], *, env: dict | None, title: str) -> bool:
+    """Open argv in a separate terminal so the REPL stays usable. Returns False if not possible."""
+    if not argv:
+        return False
+    argv = [_resolve_exe(argv[0]), *argv[1:]]
+    safe_title = title.replace('"', "'")
+    if sys.platform == "win32":
+        quoted = subprocess.list2cmdline(argv)
+        # `start` is a cmd builtin; first quoted token is the window title.
+        # `/k` keeps the window open if adb exits so errors are visible.
+        cmdline = f'start "{safe_title}" cmd /k {quoted}'
+        subprocess.Popen(cmdline, env=env, shell=True, cwd=os.getcwd())
+        return True
+    if sys.platform == "darwin":
+        script = " ".join(shlex.quote(part) for part in argv)
+        escaped = script.replace("\\", "\\\\").replace('"', '\\"')
+        subprocess.Popen(
+            ["osascript", "-e", f'tell application "Terminal" to do script "{escaped}"']
+        )
+        return True
+    for launcher in (
+        ["x-terminal-emulator", "-e"],
+        ["gnome-terminal", "--"],
+        ["konsole", "-e"],
+        ["xterm", "-e"],
+    ):
+        if shutil.which(launcher[0]):
+            subprocess.Popen([*launcher, *argv], env=env)
+            return True
+    return False
 
 
 class DroidReaverConsole(cmd.Cmd):
@@ -88,7 +128,7 @@ class DroidReaverConsole(cmd.Cmd):
                 console.print("\n[dim]^C — type[/] [cyan]exit[/] [dim]to quit the console.[/]")
 
     def _print_intro(self) -> None:
-        console.print(Panel.fit(BANNER.strip(), border_style="#00ff41"))
+        print_banner(console, compact=False)
         if self.serial:
             console.print(f"[green]✓[/] Device: [bold]{self.serial}[/]")
         else:
@@ -192,16 +232,20 @@ class DroidReaverConsole(cmd.Cmd):
     def do_apps(self, arg: str) -> None:
         """apps [filter] — list installed apps (running ones are marked)."""
         filt = arg.strip().lower()
-        apps = list_android_apps(self.config, serial=self.serial)
-        if not apps:
-            console.print(
-                "[yellow]No apps listed.[/] Is frida-server running? Try [cyan]ready[/] first."
+        with work_spinner(
+            "[cyan]Listing packages via adb[/] [dim](pm list + ps, not frida-ps)…[/]",
+            console=console,
+        ):
+            apps = list_android_apps(
+                self.config, serial=self.serial, query=filt or None
             )
-            return
-        if filt:
-            apps = [a for a in apps if filt in a.identifier.lower() or filt in a.name.lower()]
         if not apps:
-            console.print(f"[yellow]No apps match[/] '{filt}'.")
+            if filt:
+                console.print(f"[yellow]No apps match[/] '{filt}'.")
+            else:
+                console.print(
+                    "[yellow]No apps listed.[/] Check [cyan]adb[/] / USB debugging."
+                )
             return
         table = Table(header_style="bold #00ff41", border_style="#3a6652")
         table.add_column("State")
@@ -222,7 +266,15 @@ class DroidReaverConsole(cmd.Cmd):
             else:
                 console.print("[yellow]Usage:[/] target <package>")
             return
-        apps = list_android_apps(self.config, serial=self.serial)
+        if "." in query:
+            self.package = query
+            console.print(f"[green]✓[/] Target: [bold]{self.package}[/] [dim](exact package, no app scan)[/]")
+            return
+        with work_spinner(
+            f"[cyan]Matching[/] [bold]{query}[/] [dim]via adb pm list…[/]",
+            console=console,
+        ):
+            apps = list_android_apps(self.config, serial=self.serial, query=query)
         exact = [a for a in apps if a.identifier.lower() == query.lower()]
         if exact:
             self.package = exact[0].identifier
@@ -294,9 +346,22 @@ class DroidReaverConsole(cmd.Cmd):
     # ------------------------------------------------------------------ #
     # attacks
     # ------------------------------------------------------------------ #
+    def _ensure_frida_server(self) -> None:
+        if not self.serial:
+            return
+        try:
+            running = check_frida_server_running(self.config, self.serial)
+        except Exception:  # noqa: BLE001
+            running = False
+        if running:
+            return
+        console.print("[dim]frida-server is not running — starting it (`ready`)…[/]")
+        self.do_ready("")
+
     def _run_bypass(self, recipe: str, spawn: bool) -> None:
         if not self._require_target():
             return
+        self._ensure_frida_server()
         try:
             run_bypass(
                 self.config,
@@ -378,13 +443,21 @@ class DroidReaverConsole(cmd.Cmd):
         subprocess.run(self._adb_base() + ["shell"], env=build_run_env(self.config))
 
     def do_logcat(self, arg: str) -> None:
-        """logcat [filter] — stream device logs (Ctrl+C to stop)."""
+        """logcat [filter] — stream device logs in a new window (console stays usable)."""
         if not self._require_device():
             return
         args = self._split(arg)
-        console.print("[dim]Streaming logcat — press Ctrl+C to stop.[/]")
+        argv = self._adb_base() + ["logcat", *args]
+        title = f"droidreaver logcat {self.serial}"
+        if spawn_in_new_window(argv, env=build_run_env(self.config), title=title):
+            console.print(
+                f"[green]✓[/] logcat opened in a new window ([bold]{title}[/]). "
+                "Close that window to stop. This console stays free."
+            )
+            return
+        console.print("[dim]No extra terminal available — streaming here. Ctrl+C to stop.[/]")
         try:
-            subprocess.run(self._adb_base() + ["logcat", *args], env=build_run_env(self.config))
+            subprocess.run(argv, env=build_run_env(self.config))
         except KeyboardInterrupt:
             console.print("\n[dim]logcat stopped.[/]")
 

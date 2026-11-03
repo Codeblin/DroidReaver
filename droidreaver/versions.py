@@ -163,7 +163,8 @@ def fetch_frida_pypi_versions(limit: int = 15) -> list[str]:
 
 
 def resolve_frida_target(config: dict, explicit: str | None = None) -> str:
-    if explicit and explicit.lower() != "latest":
+    want_latest = bool(explicit) and explicit.lower() == "latest"
+    if explicit and not want_latest:
         target = explicit.lstrip("v")
         if not pypi_version_exists("frida", target):
             latest = fetch_pypi_latest_version("frida")
@@ -175,14 +176,15 @@ def resolve_frida_target(config: dict, explicit: str | None = None) -> str:
             )
         return target
 
-    pinned = get_pinned_version(config, "frida")
-    if pinned:
-        pinned = pinned.lstrip("v")
-        if pypi_version_exists("frida", pinned):
-            return pinned
-        console.print(
-            f"[yellow]Pinned frida {pinned} is not on PyPI — using latest instead.[/]"
-        )
+    if not want_latest:
+        pinned = get_pinned_version(config, "frida")
+        if pinned:
+            pinned = pinned.lstrip("v")
+            if pypi_version_exists("frida", pinned):
+                return pinned
+            console.print(
+                f"[yellow]Pinned frida {pinned} is not on PyPI — using latest instead.[/]"
+            )
 
     latest = fetch_pypi_latest_version("frida")
     if not latest:
@@ -264,7 +266,7 @@ def use_frida_version(
 ) -> Path:
     """Like nvm use: select frida version, create venv if needed, pin in config."""
     if version.lower() == "latest":
-        version = resolve_frida_target(config, None)
+        version = resolve_frida_target(config, "latest")
     else:
         version = version.lstrip("v")
 

@@ -175,7 +175,9 @@ def main(ctx: click.Context, no_banner: bool) -> None:
 
     if ctx.invoked_subcommand is None:
         print_banner(console, compact=False)
-        click.echo(ctx.get_help())
+        console.print(
+            "[dim]Type[/] [cyan]droidreaver --help[/] [dim]for more commands.[/]"
+        )
 
 
 @main.command()
@@ -398,26 +400,25 @@ def update_cmd(tool: str | None, update_all: bool, force: bool) -> None:
 
     if t.pin_with:
         members = [m for m in get_pin_group(tool) if get_tool(m).install_method != "manual"]
-        with work_spinner(f"[cyan]Resolving target frida runtime…[/]", console=console):
-            target = resolve_frida_target(cfg, None)
+        with work_spinner(f"[cyan]Resolving latest frida runtime…[/]", console=console):
+            target = resolve_frida_target(cfg, "latest")
         console.print(
             Panel(
-                f"[bold]Target frida runtime:[/] {target}\n\n"
-                "• [bold]frida[/] → installed at exactly this version\n"
-                "• [bold]frida-tools, objection, r2frida[/] → upgraded to pip-compatible releases "
+                f"[bold]Target frida runtime:[/] {target}  [dim](latest on PyPI)[/]\n\n"
+                "• [bold]frida[/] → isolated venv at exactly this version\n"
+                "• [bold]frida-tools, objection[/] → installed in that venv "
                 "(they use [italic]different[/] version numbers)\n"
-                "• [bold]medusa[/] → optional, best-effort\n\n"
+                "• Pin and active runtime are updated to this version\n\n"
                 f"[dim]Members:[/] {', '.join(members)}\n\n"
-                "Prefer nvm-style venvs? Use [cyan]droidreaver use {target}[/] instead.".format(
-                    target=target
-                ),
-                title="Sync frida pin group",
+                "Stay on a pinned version: [cyan]droidreaver sync frida[/]  ·  "
+                "Pick one: [cyan]droidreaver use {target}[/]".format(target=target),
+                title="Update frida pin group",
                 border_style="#3a6652",
             )
         )
         try:
-            with work_spinner(f"[cyan]Syncing frida stack…[/]", console=console):
-                results = sync_pin_group(tool, cfg, force=force)
+            with work_spinner(f"[cyan]Updating frida stack to {target}…[/]", console=console):
+                results = update_pin_group(tool, cfg, force=force)
             for n, old, new in results:
                 if old == new:
                     console.print(f"[dim]–[/] {n}: already OK ({old or '—'})")
@@ -549,6 +550,7 @@ def shell_cmd() -> None:
         console.print(shell_path_hint(cfg))
         sys.exit(1)
 
+    print_banner(console, compact=False)
     shell_argv = pick_user_shell()
     shell_name = os.path.basename(shell_argv[0])
     console.print(
@@ -1471,26 +1473,33 @@ def device_list() -> None:
 @device_group.command("root-server")
 @click.option("--device", "-d", "serial", default=None, help="ADB device serial")
 def device_root_server(serial: str | None) -> None:
-    """Restart frida-server as root (required for attach on rooted phones)."""
+    """Restart frida-server as root (Magisk su or emulator adb root)."""
     from droidreaver.device import (
         DEFAULT_FRIDA_SERVER_PATH,
         device_has_su,
+        device_is_rooted,
         frida_server_status,
         print_frida_attach_troubleshooting,
         restart_frida_server,
+        try_adb_root,
     )
 
     cfg = _load_cfg()
-    if not device_has_su(cfg, serial):
+    if not device_is_rooted(cfg, serial) and not try_adb_root(cfg, serial):
         console.print(
-            "[red]adb shell su failed[/] — device does not appear rooted, or Magisk denied su.\n"
-            "Grant root to [bold]Shell[/] or [bold]ADB[/] in Magisk Superuser settings."
+            "[red]No root path[/] — `adb shell su` failed and `adb root` did not make "
+            "the shell uid 0.\n"
+            "Emulator: use a Google APIs/AOSP image (not Play Store) and [cyan]adb root[/].\n"
+            "Phone: Magisk — grant root to [bold]Shell[/] or [bold]ADB[/]."
         )
         sys.exit(1)
 
-    console.print(
-        "[dim]Watch your phone — approve the Magisk/superuser prompt if it appears.[/]\n"
-    )
+    if device_has_su(cfg, serial):
+        console.print(
+            "[dim]Watch your phone — approve the Magisk/superuser prompt if it appears.[/]\n"
+        )
+    else:
+        console.print("[dim]Using emulator/userdebug adbd root (no Magisk su).[/]\n")
     status = restart_frida_server(cfg, serial=serial, verbose=True)
     if status.running and status.runs_as_root:
         console.print("[bold green]◈ frida-server is running as root.[/] You can hook now.")

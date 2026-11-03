@@ -21,10 +21,10 @@ def test_prompt_reflects_state(monkeypatch):
     assert "no-device" in c.prompt
     assert "no-target" in c.prompt
     c.serial = "emulator-5554"
-    c.package = "com.example.app"
+    c.package = "com.codeblin.droidreavervault"
     c._update_prompt()
     assert "emulator-5554" in c.prompt
-    assert "com.example.app" in c.prompt
+    assert "com.codeblin.droidreavervault" in c.prompt
 
 
 def test_empty_line_is_noop(monkeypatch):
@@ -70,10 +70,13 @@ def test_target_exact_match(monkeypatch):
         def running(self):
             return self.pid is not None
 
-    apps = [App("com.example.app", "Example"), App("com.other.app", "Other")]
+    apps = [
+        App("com.codeblin.droidreavervault", "droidreavervault"),
+        App("com.codeblin.droidreavervault.debug", "droidreavervault"),
+    ]
     c = _make(monkeypatch, apps=apps)
-    c.do_target("com.example.app")
-    assert c.package == "com.example.app"
+    c.do_target("com.codeblin.droidreavervault")
+    assert c.package == "com.codeblin.droidreavervault"
 
 
 def test_target_falls_back_to_literal_when_no_apps(monkeypatch):
@@ -111,3 +114,45 @@ def test_adb_reverse_timeout_returns_to_console(monkeypatch):
     monkeypatch.setattr(console_mod.subprocess, "run", timeout)
     monkeypatch.setattr(console_mod, "adb_path", lambda cfg: "adb")
     assert c.do_adb("reverse tcp:8080 tcp:8080") is None
+
+
+def test_spawn_in_new_window_windows_uses_start_cmd_k(monkeypatch):
+    # Patch only this module's sys so pathlib does not switch to Win32 APIs on Linux/macOS.
+    monkeypatch.setattr(console_mod, "sys", SimpleNamespace(platform="win32"))
+    monkeypatch.setattr(console_mod, "_resolve_exe", lambda exe: exe)
+    calls = []
+
+    def fake_popen(*args, **kwargs):
+        calls.append((args, kwargs))
+        return SimpleNamespace(pid=1)
+
+    monkeypatch.setattr(console_mod.subprocess, "Popen", fake_popen)
+    ok = console_mod.spawn_in_new_window(
+        [r"C:\platform-tools\adb.exe", "-s", "emulator-5554", "logcat"],
+        env={},
+        title='droidreaver logcat emulator-5554',
+    )
+    assert ok is True
+    cmdline = calls[0][0][0]
+    assert 'start "droidreaver logcat emulator-5554"' in cmdline
+    assert "cmd /k" in cmdline
+    assert "adb.exe" in cmdline
+    assert calls[0][1]["shell"] is True
+
+
+def test_logcat_opens_new_window(monkeypatch):
+    c = _make(monkeypatch, devices=["emulator-5554"])
+    c.serial = "emulator-5554"
+    captured = {}
+
+    def fake_spawn(argv, *, env, title):
+        captured["argv"] = argv
+        captured["title"] = title
+        return True
+
+    monkeypatch.setattr(console_mod, "spawn_in_new_window", fake_spawn)
+    monkeypatch.setattr(console_mod, "adb_path", lambda cfg: "adb")
+    c.do_logcat("*:S AndroidRuntime:D")
+    assert captured["argv"][:4] == ["adb", "-s", "emulator-5554", "logcat"]
+    assert "AndroidRuntime:D" in captured["argv"]
+    assert "emulator-5554" in captured["title"]
