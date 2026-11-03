@@ -117,7 +117,9 @@ def test_adb_reverse_timeout_returns_to_console(monkeypatch):
 
 
 def test_spawn_in_new_window_windows_uses_start_cmd_k(monkeypatch):
-    monkeypatch.setattr(console_mod.sys, "platform", "win32")
+    # Patch only this module's sys so pathlib does not switch to Win32 APIs on Linux/macOS.
+    monkeypatch.setattr(console_mod, "sys", SimpleNamespace(platform="win32"))
+    monkeypatch.setattr(console_mod, "_resolve_exe", lambda exe: exe)
     calls = []
 
     def fake_popen(*args, **kwargs):

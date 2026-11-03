@@ -110,10 +110,11 @@ def test_run_bypass_launches_then_attaches_when_stopped():
                             "droidreaver.bypass._wait_for_running_app",
                             return_value=running,
                         ):
-                            with patch(
-                                "droidreaver.bypass._run_frida_session",
-                                return_value=(0, 5.0),
-                            ) as run_sess:
+                            with patch("droidreaver.bypass.relax_selinux"):
+                              with patch(
+                                  "droidreaver.bypass._run_frida_session",
+                                  return_value=(0, 5.0),
+                              ) as run_sess:
                                 code = run_bypass(cfg, "all", "com.codeblin.droidreavervault", spawn=False)
     assert code == 0
     launch.assert_called_once()
@@ -234,7 +235,8 @@ def test_run_bypass_force_stops_before_spawn():
             with patch("droidreaver.bypass._tool_ready", return_value=True):
                 with patch("droidreaver.bypass.preflight"):
                     with patch("droidreaver.bypass.force_stop_app") as stop:
-                        with patch("droidreaver.bypass._run_frida_session", return_value=(0, 1.0)):
+                        with patch("droidreaver.bypass.relax_selinux"):
+                          with patch("droidreaver.bypass._run_frida_session", return_value=(0, 1.0)):
                             code = run_bypass(
                                 cfg,
                                 "all",
@@ -260,15 +262,17 @@ def test_run_bypass_spawn_failure_falls_back_to_attach():
                 with patch("droidreaver.bypass._tool_ready", return_value=True):
                     with patch("droidreaver.bypass.preflight"):
                         with patch("droidreaver.bypass.force_stop_app"):
-                            with patch("droidreaver.bypass.launch_app"):
-                                with patch(
-                                    "droidreaver.bypass._wait_for_running_app",
-                                    return_value=attach_target,
-                                ):
-                                    with patch(
-                                        "droidreaver.bypass._run_frida_session",
-                                        side_effect=[(1, 0.5), (0, 5.0)],
-                                    ) as run_sess:
+                            with patch("droidreaver.bypass.relax_selinux"):
+                              with patch("droidreaver.bypass.list_android_apps", return_value=apps_stopped):
+                                with patch("droidreaver.bypass.launch_app"):
+                                  with patch(
+                                      "droidreaver.bypass._wait_for_running_app",
+                                      return_value=attach_target,
+                                  ):
+                                      with patch(
+                                          "droidreaver.bypass._run_frida_session",
+                                          side_effect=[(1, 0.5), (0, 5.0)],
+                                      ) as run_sess:
                                         code = run_bypass(
                                             cfg,
                                             "all",
