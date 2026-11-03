@@ -21,10 +21,10 @@ def test_prompt_reflects_state(monkeypatch):
     assert "no-device" in c.prompt
     assert "no-target" in c.prompt
     c.serial = "emulator-5554"
-    c.package = "com.example.app"
+    c.package = "com.codeblin.droidreavervault"
     c._update_prompt()
     assert "emulator-5554" in c.prompt
-    assert "com.example.app" in c.prompt
+    assert "com.codeblin.droidreavervault" in c.prompt
 
 
 def test_empty_line_is_noop(monkeypatch):
@@ -70,10 +70,13 @@ def test_target_exact_match(monkeypatch):
         def running(self):
             return self.pid is not None
 
-    apps = [App("com.example.app", "Example"), App("com.other.app", "Other")]
+    apps = [
+        App("com.codeblin.droidreavervault", "droidreavervault"),
+        App("com.codeblin.droidreavervault.debug", "droidreavervault"),
+    ]
     c = _make(monkeypatch, apps=apps)
-    c.do_target("com.example.app")
-    assert c.package == "com.example.app"
+    c.do_target("com.codeblin.droidreavervault")
+    assert c.package == "com.codeblin.droidreavervault"
 
 
 def test_target_falls_back_to_literal_when_no_apps(monkeypatch):
