@@ -3,8 +3,6 @@
 from pathlib import Path
 from unittest.mock import patch
 
-import pytest
-
 from droidreaver.bypass import (
     RECIPES,
     AndroidApp,
@@ -42,14 +40,27 @@ def test_bundled_scripts_exist():
     assert script_path(MEDUSA_ROOT_SPEC, cfg).is_file()
 
 
+def test_ssl_script_covers_common_stacks():
+    text = Path(__file__).resolve().parents[1].joinpath(
+        "droidreaver", "scripts", "ssl_pinning_bypass.js"
+    ).read_text(encoding="utf-8")
+    for marker in (
+        "SSLContext",
+        "TrustManagerImpl",
+        "CertificatePinner",
+        "NetworkSecurityTrustManager",
+        "WebViewClient",
+        "SSL_CTX_set_custom_verify",
+        "findExport",
+        "trustkit",
+    ):
+        assert marker in text, marker
+
+
 def test_list_android_apps_parses_frida_ps():
-    cfg = {}
-    with patch("droidreaver.bypass.run_cmd") as mock_run:
-        mock_run.return_value.returncode = 0
-        mock_run.return_value.stdout = FRIDA_PS_SAMPLE
-        with patch("droidreaver.bypass.resolve_executable", return_value=["frida-ps"]):
-            with patch("droidreaver.bypass._tool_ready", return_value=True):
-                apps = list_android_apps(cfg)
+    from droidreaver.bypass import _parse_frida_ps_apps
+
+    apps = _parse_frida_ps_apps(FRIDA_PS_SAMPLE)
     assert len(apps) == 2
     assert apps[0].identifier == "com.example.anchored"
     assert apps[0].pid == 14935
@@ -57,13 +68,18 @@ def test_list_android_apps_parses_frida_ps():
     assert apps[1].pid is None
 
 
+def test_list_android_apps_uses_adb_pm_and_ps():
+    cfg = {}
+    with patch("droidreaver.bypass.list_installed_packages", return_value=["com.example.anchored"]):
+        with patch("droidreaver.bypass.process_name_pids", return_value={"com.example.anchored": 42}):
+            apps = list_android_apps(cfg)
+    assert apps[0].identifier == "com.example.anchored"
+    assert apps[0].pid == 42
+
+
 def test_resolve_target_attach_running():
     cfg = {}
-    apps = [
-        AndroidApp(14935, "Anchored", "com.example.anchored"),
-        AndroidApp(None, "APKrypt", "com.example.apkrypt"),
-    ]
-    with patch("droidreaver.bypass.list_android_apps", return_value=apps):
+    with patch("droidreaver.bypass.pidof_package", return_value=14935):
         target = resolve_android_target(
             cfg, "com.example.anchored", spawn=False, serial=None, foremost=False
         )
@@ -71,15 +87,40 @@ def test_resolve_target_attach_running():
     assert target.spawn is False
 
 
-def test_resolve_target_auto_spawn_when_stopped():
+def test_resolve_target_stays_attach_when_stopped():
     cfg = {}
-    apps = [AndroidApp(None, "APKrypt", "com.example.apkrypt")]
-    with patch("droidreaver.bypass.list_android_apps", return_value=apps):
+    with patch("droidreaver.bypass.pidof_package", return_value=None):
         target = resolve_android_target(
             cfg, "com.example.apkrypt", spawn=False, serial=None, foremost=False
         )
-    assert target.spawn is True
+    assert target.spawn is False
+    assert target.pid is None
     assert target.identifier == "com.example.apkrypt"
+
+
+def test_run_bypass_launches_then_attaches_when_stopped():
+    cfg = {}
+    running = ResolvedTarget("com.example.app", "com.example.app", 99, "app", False)
+    with patch("droidreaver.bypass.pidof_package", return_value=None):
+        with patch("droidreaver.bypass.choose_engine", return_value="frida"):
+            with patch("droidreaver.bypass._tool_ready", return_value=True):
+                with patch("droidreaver.bypass.preflight"):
+                    with patch("droidreaver.bypass.launch_app") as launch:
+                        with patch(
+                            "droidreaver.bypass._wait_for_running_app",
+                            return_value=running,
+                        ):
+                            with patch(
+                                "droidreaver.bypass._run_frida_session",
+                                return_value=(0, 5.0),
+                            ) as run_sess:
+                                code = run_bypass(cfg, "all", "com.example.app", spawn=False)
+    assert code == 0
+    launch.assert_called_once()
+    argv = run_sess.call_args[0][0]
+    assert "-N" in argv and "com.example.app" in argv
+    assert "-f" not in argv
+    assert "-U" in argv
 
 
 def test_build_objection_argv_uses_pid_for_attach():
@@ -121,7 +162,7 @@ def test_build_frida_argv_attach_by_identifier():
     assert len(script_flags) == 2
 
 
-def test_build_frida_argv_prefers_identifier_over_pid():
+def test_build_frida_argv_prefers_package_over_pid():
     cfg = {}
     recipe = RECIPES["ssl"]
     target = ResolvedTarget("com.example.app", "com.example.app", 1234, "App", False)
@@ -150,6 +191,7 @@ def test_build_frida_argv_serial_uses_only_device_id_transport():
     assert "device-123" in argv
     assert "-U" not in argv
     assert "-R" not in argv
+    assert "-H" not in argv
 
 
 def test_build_frida_argv_network_uses_remote_transport_only():
@@ -186,8 +228,9 @@ def test_choose_engine_uses_frida_for_root():
 def test_run_bypass_force_stops_before_spawn():
     cfg = {}
     apps = [AndroidApp(None, "TalentCards", "com.talentcards.android")]
-    with patch("droidreaver.bypass.list_android_apps", return_value=apps):
-        with patch("droidreaver.bypass.choose_engine", return_value="frida"):
+    with patch("droidreaver.bypass.pidof_package", return_value=None):
+        with patch("droidreaver.bypass.list_android_apps", return_value=apps):
+          with patch("droidreaver.bypass.choose_engine", return_value="frida"):
             with patch("droidreaver.bypass._tool_ready", return_value=True):
                 with patch("droidreaver.bypass.preflight"):
                     with patch("droidreaver.bypass.force_stop_app") as stop:
@@ -212,25 +255,25 @@ def test_run_bypass_spawn_failure_falls_back_to_attach():
         "TalentCards",
         False,
     )
-    with patch("droidreaver.bypass.list_android_apps", return_value=apps_stopped):
-        with patch("droidreaver.bypass.choose_engine", return_value="frida"):
-            with patch("droidreaver.bypass._tool_ready", return_value=True):
-                with patch("droidreaver.bypass.preflight"):
-                    with patch("droidreaver.bypass.force_stop_app"):
-                        with patch("droidreaver.bypass.launch_app"):
-                            with patch(
-                                "droidreaver.bypass._wait_for_running_app",
-                                return_value=attach_target,
-                            ):
+    with patch("droidreaver.bypass.pidof_package", return_value=None):
+            with patch("droidreaver.bypass.choose_engine", return_value="frida"):
+                with patch("droidreaver.bypass._tool_ready", return_value=True):
+                    with patch("droidreaver.bypass.preflight"):
+                        with patch("droidreaver.bypass.force_stop_app"):
+                            with patch("droidreaver.bypass.launch_app"):
                                 with patch(
-                                    "droidreaver.bypass._run_frida_session",
-                                    side_effect=[(1, 0.5), (0, 5.0)],
-                                ) as run_sess:
-                                    code = run_bypass(
-                                        cfg,
-                                        "all",
-                                        "com.talentcards.android",
-                                        spawn=True,
-                                    )
+                                    "droidreaver.bypass._wait_for_running_app",
+                                    return_value=attach_target,
+                                ):
+                                    with patch(
+                                        "droidreaver.bypass._run_frida_session",
+                                        side_effect=[(1, 0.5), (0, 5.0)],
+                                    ) as run_sess:
+                                        code = run_bypass(
+                                            cfg,
+                                            "all",
+                                            "com.talentcards.android",
+                                            spawn=True,
+                                        )
     assert code == 0
     assert run_sess.call_count == 2

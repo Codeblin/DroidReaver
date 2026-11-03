@@ -111,3 +111,43 @@ def test_adb_reverse_timeout_returns_to_console(monkeypatch):
     monkeypatch.setattr(console_mod.subprocess, "run", timeout)
     monkeypatch.setattr(console_mod, "adb_path", lambda cfg: "adb")
     assert c.do_adb("reverse tcp:8080 tcp:8080") is None
+
+
+def test_spawn_in_new_window_windows_uses_start_cmd_k(monkeypatch):
+    monkeypatch.setattr(console_mod.sys, "platform", "win32")
+    calls = []
+
+    def fake_popen(*args, **kwargs):
+        calls.append((args, kwargs))
+        return SimpleNamespace(pid=1)
+
+    monkeypatch.setattr(console_mod.subprocess, "Popen", fake_popen)
+    ok = console_mod.spawn_in_new_window(
+        [r"C:\platform-tools\adb.exe", "-s", "emulator-5554", "logcat"],
+        env={},
+        title='droidreaver logcat emulator-5554',
+    )
+    assert ok is True
+    cmdline = calls[0][0][0]
+    assert 'start "droidreaver logcat emulator-5554"' in cmdline
+    assert "cmd /k" in cmdline
+    assert "adb.exe" in cmdline
+    assert calls[0][1]["shell"] is True
+
+
+def test_logcat_opens_new_window(monkeypatch):
+    c = _make(monkeypatch, devices=["emulator-5554"])
+    c.serial = "emulator-5554"
+    captured = {}
+
+    def fake_spawn(argv, *, env, title):
+        captured["argv"] = argv
+        captured["title"] = title
+        return True
+
+    monkeypatch.setattr(console_mod, "spawn_in_new_window", fake_spawn)
+    monkeypatch.setattr(console_mod, "adb_path", lambda cfg: "adb")
+    c.do_logcat("*:S AndroidRuntime:D")
+    assert captured["argv"][:4] == ["adb", "-s", "emulator-5554", "logcat"]
+    assert "AndroidRuntime:D" in captured["argv"]
+    assert "emulator-5554" in captured["title"]

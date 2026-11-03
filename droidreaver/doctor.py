@@ -198,8 +198,8 @@ def check_frida_server_match(config: dict) -> CheckResult:
         return CheckResult(
             "Frida server",
             "warn",
-            "Device not rooted — Frida attach to third-party apps usually fails",
-            "Use a rooted device/emulator or frida-gadget",
+            "No root path (Magisk su or adb root) — Frida attach usually fails",
+            "adb root on a Google APIs AVD, or Magisk on a phone, then droidreaver ready",
         )
 
     # Best-effort: if frida-ps works, versions likely match

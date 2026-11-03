@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 from functools import wraps
+from pathlib import Path
 from typing import Callable, TypeVar
 
 from rich.align import Align
@@ -26,34 +27,17 @@ C_WARN = "#ffb000"         # amber
 C_DIM = "#3a6652"          # muted green
 C_GLOW = "#39ff14"         # neon
 
-LOGO = r"""
-  ____  ____   ___ ___ ____
- |  _ \|  _ \ / _ \_ _|  _ \
- | | | | |_) | | | | || | | |
- | |_| |  _ <| |_| | || |_| |
- |____/|_| \_\\___/___|____/
-
-  ____  _____    _ __     _______ ____
- |  _ \| ____|  / \\ \   / / ____|  _ \
- | |_) |  _|   / _ \\ \ / /|  _| | |_) |
- |  _ <| |___ / ___ \\ V / | |___|  _ <
- |_| \_\_____/_/   \_\_/  |_____|_| \_\
-"""
-
-SIGNAL_PANEL = r"""
-   /----------------------\
-   | apk  -> map -> hook  |
-   | adb  :: frida :: js  |
-   | jadx :: apktool      |
-   \----------------------/
-        \__ mobile lab __/
-"""
+LOGO = Path(__file__).with_name("banner_art.txt").read_text(encoding="utf-8")
 
 CIRCUIT_FOOTER = (
     "[ adb ]---[ frida ]---[ jadx ]---[ objection ]---[ apktool ]"
 )
 
 TAGLINE = "ANDROID PENTEST ENVIRONMENT"
+# Full ASCII plus panel chrome needs about this many columns; below that we
+# crop, and below _COMPACT_WIDTH we switch to the one-line header.
+_COMPACT_WIDTH = 56
+_PANEL_CHROME = 8
 
 
 def banner_enabled() -> bool:
@@ -61,67 +45,144 @@ def banner_enabled() -> bool:
     return val not in ("1", "true", "yes")
 
 
-def _colorize_logo(art: str) -> Text:
-    result = Text()
-    lines = art.strip("\n").splitlines()
+def _is_wordmark_line(line: str) -> bool:
+    stripped = line.lstrip()
+    if not stripped:
+        return False
+    if "!" in stripped:
+        return True
+    return stripped.startswith("@") and "#" not in stripped
+
+
+def _style_for_face_char(ch: str) -> Style:
+    if ch in ":. ":
+        return Style(color=C_DIM)
+    if ch in "@%#":
+        return Style(color=C_PRIMARY, bold=True)
+    if ch in "*+=":
+        return Style(color=C_GLOW, bold=True)
+    return Style(color=C_PRIMARY)
+
+
+def _style_for_wordmark_char(ch: str) -> Style:
+    if ch in "@":
+        return Style(color=C_PRIMARY, bold=True)
+    if ch in "!":
+        return Style(color=C_GLOW, bold=True)
+    if ch in ":":
+        return Style(color=C_PRIMARY)
+    return Style(color=C_DIM)
+
+
+def _stamp(line: str, text: str, *, align: str = "center") -> tuple[str, int]:
+    width = max(len(line), len(text) + 4)
+    if align == "right":
+        start = max(0, width - len(text) - 2)
+    elif align == "left":
+        start = 2 if width > len(text) + 2 else 0
+    else:
+        start = max(0, (width - len(text)) // 2)
+    base = line.ljust(width)
+    end = start + len(text)
+    if end > len(base):
+        base = base.ljust(end)
+    return base[:start] + text + base[end:], start
+
+
+def _compose_logo(
+    art: str,
+    version: str,
+    *,
+    max_width: int | None = None,
+) -> tuple[list[str], dict[int, tuple[int, str, Style]], int]:
+    lines = [line.rstrip() for line in art.strip("\n").splitlines()]
+    face_end = next((i for i, line in enumerate(lines) if _is_wordmark_line(line)), len(lines))
+    stamps: dict[int, tuple[int, str, Style]] = {}
+
+    def apply(index: int, text: str, style: Style, *, align: str = "center") -> None:
+        if max_width is not None and len(text) > max_width:
+            return
+        stamped, start = _stamp(lines[index], text, align=align)
+        if max_width is not None and len(stamped) > max_width:
+            stamped = stamped[:max_width]
+            if start >= max_width:
+                return
+            text = text[: max(0, max_width - start)]
+        lines[index] = stamped
+        stamps[index] = (start, text, style)
+
+    apply(6, f"v{version}", Style(color=C_WARN, bold=True), align="right")
+    chin = [i for i in range(face_end - 2, face_end) if i >= 0]
+    if chin:
+        apply(chin[0], f":: {TAGLINE} ::", Style(color=C_GLOW, bold=True))
+    if len(chin) > 1:
+        apply(chin[1], "APK WORKFLOW  //  MOBILE SECURITY", Style(color=C_SECONDARY, bold=True))
+
+    gaps = [i for i in range(face_end, len(lines)) if not lines[i].strip()]
+    if gaps:
+        apply(gaps[0], CIRCUIT_FOOTER, Style(color=C_DIM))
+
+    if max_width is not None:
+        lines = [line[:max_width] for line in lines]
+
+    return lines, stamps, face_end
+
+
+def _colorize_logo(art: str, *, version: str, max_width: int | None = None) -> Text:
+    result = Text(no_wrap=True, overflow="crop")
+    lines, stamps, face_end = _compose_logo(art, version, max_width=max_width)
+
     for i, line in enumerate(lines):
         if i > 0:
             result.append("\n")
-        if not line:
-            continue
-        color = C_SECONDARY if i < 5 else C_PRIMARY
-        result.append(line, style=Style(color=color, bold=True))
+        stamp = stamps.get(i)
+        stamp_range = range(stamp[0], stamp[0] + len(stamp[1])) if stamp else range(0)
+        wordmark = i >= face_end
+        for j, ch in enumerate(line):
+            if stamp and j in stamp_range:
+                result.append(ch, style=stamp[2])
+            elif wordmark:
+                result.append(ch, style=_style_for_wordmark_char(ch))
+            else:
+                result.append(ch, style=_style_for_face_char(ch))
     return result
 
 
-def _colorize_panel(art: str) -> Text:
-    result = Text()
-    lines = art.strip("\n").splitlines()
-    for i, line in enumerate(lines):
-        if i > 0:
-            result.append("\n")
-        style = Style(color=C_WARN if i in (1, 2, 3) else C_DIM, bold=i in (1, 2, 3))
-        result.append(line, style=style)
-    return result
+def _compact_banner(version: str) -> RenderableType:
+    line = Text()
+    line.append("[dr] ", style=Style(color=C_ACCENT, bold=True))
+    line.append("Droid", style=Style(color=C_SECONDARY, bold=True))
+    line.append("Reaver", style=Style(color=C_PRIMARY, bold=True))
+    line.append(f"  v{version}  ", style=Style(color=C_DIM))
+    line.append("|", style=Style(color=C_DIM))
+    line.append(" android pentest environment ", style=Style(color=C_GLOW, italic=True))
+    return Panel(
+        line,
+        border_style=Style(color=C_DIM),
+        padding=(0, 1),
+    )
 
 
-def render_banner(*, compact: bool = False, version: str = __version__) -> RenderableType:
-    if compact:
-        line = Text()
-        line.append("[dr] ", style=Style(color=C_ACCENT, bold=True))
-        line.append("Droid", style=Style(color=C_SECONDARY, bold=True))
-        line.append("Reaver", style=Style(color=C_PRIMARY, bold=True))
-        line.append(f"  v{version}  ", style=Style(color=C_DIM))
-        line.append("|", style=Style(color=C_DIM))
-        line.append(" android pentest environment ", style=Style(color=C_GLOW, italic=True))
-        return Panel(
-            line,
-            border_style=Style(color=C_DIM),
-            padding=(0, 1),
-        )
+def render_banner(
+    *,
+    compact: bool = False,
+    version: str = __version__,
+    width: int | None = None,
+) -> RenderableType:
+    if compact or (width is not None and width < _COMPACT_WIDTH):
+        return _compact_banner(version)
 
-    hero = Table.grid(padding=(0, 3))
-    hero.add_column(no_wrap=True)
-    hero.add_column(no_wrap=True)
-    hero.add_row(_colorize_logo(LOGO), _colorize_panel(SIGNAL_PANEL))
-    hero_lockup = Align(hero, align="center")
-    identity = Text(justify="center")
-    identity.append(":: ", style=Style(color=C_ACCENT, bold=True))
-    identity.append(TAGLINE, style=Style(color=C_GLOW, bold=True))
-    identity.append(" ::", style=Style(color=C_ACCENT, bold=True))
-    metadata = Text(justify="center")
-    metadata.append(f"v{version}", style=Style(color=C_WARN, bold=True))
-    metadata.append("  //  ", style=Style(color=C_DIM))
-    metadata.append("APK WORKFLOW", style=Style(color=C_SECONDARY))
-    metadata.append("  //  ", style=Style(color=C_DIM))
-    metadata.append("MOBILE SECURITY", style=Style(color=C_PRIMARY))
-    footer = Text(CIRCUIT_FOOTER, style=Style(color=C_DIM), justify="center")
-
+    inner = None if width is None else max(20, width - _PANEL_CHROME)
+    hero_lockup = Align(
+        _colorize_logo(LOGO, version=version, max_width=inner),
+        align="center",
+    )
+    padding = (0, 1) if width is not None and width < 80 else (1, 2)
     stack = Group(
         Panel(
-            Group(hero_lockup, Text(""), identity, metadata, Text(""), footer),
+            hero_lockup,
             border_style=Style(color=C_PRIMARY),
-            padding=(1, 2),
+            padding=padding,
             title="[bold bright_green][ DROIDREAVER ][/]",
             title_align="center",
         ),
@@ -134,7 +195,7 @@ def print_banner(console: Console | None = None, *, compact: bool = False) -> No
     if not banner_enabled():
         return
     con = console or Console()
-    con.print(render_banner(compact=compact))
+    con.print(render_banner(compact=compact, width=con.size.width))
     con.print()
 
 

@@ -13,3 +13,12 @@ def test_work_progress_runs():
         for i in range(3):
             update(f"Step {i + 1}")
             advance()
+
+
+def test_nested_spinner_does_not_start_second_live():
+    """Inner spinner must not fight the outer bar (fix → push-server)."""
+    with work_progress("Outer…", total=1) as (update, advance):
+        update("Fixing: Push and start frida-server…")
+        with work_spinner("Downloading frida-server…") as inner:
+            inner("still downloading")
+        advance()

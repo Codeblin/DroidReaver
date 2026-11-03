@@ -1125,14 +1125,23 @@ def update_pin_group(
     *,
     force: bool = False,
 ) -> list[tuple[str, str | None, str | None]]:
-    """Update all members of a pin group atomically."""
-    from droidreaver.versions import PinGroupSyncError, print_sync_error
+    """Bump the frida pin group to the latest PyPI runtime (isolated venv)."""
+    from droidreaver.versions import (
+        PinGroupSyncError,
+        get_active_frida_version,
+        print_sync_error,
+        resolve_frida_target,
+        use_frida_version,
+    )
 
+    old = get_active_frida_version(cfg)
+    target = resolve_frida_target(cfg, "latest")
     try:
-        return sync_pin_group(tool_name, cfg, force=force)
+        use_frida_version(cfg, target, force=force)
     except PinGroupSyncError as e:
         print_sync_error(e)
         raise InstallError(str(e)) from e
+    return [("frida", old, target)]
 
 
 def get_tool_status(tool: Tool, cfg: dict, *, fetch_latest: bool = True) -> dict:
