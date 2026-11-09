@@ -57,10 +57,7 @@ def format_coverage_markdown(xml_path: Path) -> str:
         for pct, name in weak:
             lines.append(f"| `{name}` | {pct:.1f}% |")
         lines.append("")
-    lines.append(
-        "_From `coverage.xml` on ubuntu-latest. Full table is also in the "
-        "Actions job summary. (Marketplace upload-artifact is blocked by org policy.)_"
-    )
+    lines.append("_pytest-cov on ubuntu-latest._")
     return "\n".join(lines) + "\n"
 
 
