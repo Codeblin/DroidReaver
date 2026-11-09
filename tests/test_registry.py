@@ -49,7 +49,8 @@ def test_frida_pin_group():
     assert "objection" in group
     assert "frida-tools" in group
     assert "r2frida" in group
-    assert "medusa" in group
+    assert "medusa" not in group
+    assert get_pin_group("medusa") == {"medusa"}
 
 
 def test_pin_group_singleton():

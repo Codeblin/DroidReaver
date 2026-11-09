@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import difflib
 from collections import defaultdict
 
 import click
@@ -30,6 +31,7 @@ CORE_SECTIONS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "doctor",
             "fix",
             "install",
+            "uninstall",
             "get",
             "update",
             "sync",
@@ -79,6 +81,25 @@ CATEGORY_ORDER: tuple[str, ...] = (
 
 class DroidReaverGroup(click.Group):
     """Click group that renders --help in categorized sections."""
+
+    def get_command(self, ctx: click.Context, cmd_name: str) -> click.Command | None:
+        cmd = super().get_command(ctx, cmd_name)
+        if cmd is not None:
+            return cmd
+        names = list(self.list_commands(ctx))
+        by_lower = {name.lower(): name for name in names}
+        exact = by_lower.get(cmd_name.lower())
+        if exact:
+            return super().get_command(ctx, exact)
+        close = difflib.get_close_matches(cmd_name.lower(), list(by_lower), n=1, cutoff=0.85)
+        if close:
+            resolved = by_lower[close[0]]
+            click.echo(
+                f"No such command '{cmd_name}'. Using '{resolved}'.",
+                err=True,
+            )
+            return super().get_command(ctx, resolved)
+        return None
 
     def format_commands(self, ctx: click.Context, formatter: click.HelpFormatter) -> None:
         by_name: dict[str, click.Command] = {}

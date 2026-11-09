@@ -340,7 +340,7 @@ def print_versions_report(config: dict) -> None:
         tool = get_tool(name)
         if tool.install_method == "manual":
             continue
-        ver = get_tool_version(tool)
+        ver = get_tool_version(tool, config)
         note = ""
         if name in FRIDA_EXACT:
             note = "must match active frida runtime"

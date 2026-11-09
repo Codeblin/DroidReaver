@@ -11,6 +11,7 @@ import sys
 import tarfile
 import tempfile
 import zipfile
+from dataclasses import dataclass, field
 from hashlib import sha256
 from pathlib import Path
 from typing import Callable
@@ -23,6 +24,7 @@ from droidreaver.config import get_pinned_version, install_dir
 from droidreaver.registry import Tool, get_pin_group, get_tool, resolve_install_order
 from droidreaver.utils import (
     compare_versions,
+    detect_cpu_arch,
     detect_platform,
     detect_system_package_manager,
     extract_release_version,
@@ -38,6 +40,7 @@ from droidreaver.utils import (
     npm_show_version,
     parse_version,
     pip_show_version,
+    PROBE_CMD_TIMEOUT,
     run_cmd,
     versions_match,
     which,
@@ -106,6 +109,112 @@ def _tool_has_install_artifacts(tool: Tool, config: dict | None) -> bool:
     return False
 
 
+GIT_REF_MARKER = ".droidreaver-ref"
+
+
+def _write_git_ref(tool_dir: Path, ref: str) -> None:
+    (tool_dir / GIT_REF_MARKER).write_text(ref.strip() + "\n", encoding="utf-8")
+
+
+def _normalize_git_version(ref: str) -> str:
+    return extract_release_version({"tag_name": ref.strip()}) or ref.strip()
+
+
+def _git_tool_version(tool_dir: Path) -> str | None:
+    """Version for git/zip clones (Medusa has no --version CLI)."""
+    if not tool_dir.is_dir():
+        return None
+    recorded = tool_dir / GIT_REF_MARKER
+    if recorded.is_file():
+        label = recorded.read_text(encoding="utf-8").strip()
+        if label:
+            return _normalize_git_version(label)
+    git_exe = find_git()
+    if git_exe and (tool_dir / ".git").exists():
+        described = run_cmd(
+            [git_exe, "-C", str(tool_dir), "describe", "--tags", "--always"],
+            timeout=PROBE_CMD_TIMEOUT,
+        )
+        if described.returncode == 0:
+            label = (described.stdout or "").strip()
+            if label:
+                return label
+        short = run_cmd(
+            [git_exe, "-C", str(tool_dir), "rev-parse", "--short", "HEAD"],
+            timeout=PROBE_CMD_TIMEOUT,
+        )
+        if short.returncode == 0:
+            label = (short.stdout or "").strip()
+            if label:
+                return label
+    marker = tool_dir / ".droidreaver-source"
+    if marker.is_file():
+        kind = marker.read_text(encoding="utf-8").strip() or "clone"
+        return kind
+    if (tool_dir / "medusa.py").is_file() or (tool_dir / "bin").is_dir():
+        return "installed"
+    return None
+
+
+def _resolve_git_ref(tool: Tool, version: str | None = None) -> str:
+    """GitHub release tag shown as Latest, else the default branch."""
+    if version:
+        return version.strip()
+    if not tool.github_repo:
+        return "master"
+    try:
+        release = get_latest_github_release(tool.github_repo)
+        tag = str(release.get("tag_name") or "").strip()
+        if tag:
+            return tag
+    except requests.RequestException:
+        pass
+    try:
+        return get_github_default_branch(tool.github_repo)
+    except requests.RequestException:
+        return "master"
+
+
+def _git_ref_candidates(ref: str) -> list[str]:
+    refs = [ref]
+    if ref.startswith("v") and len(ref) > 1:
+        refs.append(ref[1:])
+    elif ref and ref[0].isdigit():
+        refs.insert(0, f"v{ref}")
+    seen: set[str] = set()
+    out: list[str] = []
+    for item in refs:
+        if item not in seen:
+            seen.add(item)
+            out.append(item)
+    return out
+
+
+def _git_fetch_and_checkout(git_exe: str, inst: Path, ref: str) -> bool:
+    """Move a shallow clone onto a tag/branch (git pull does not do this)."""
+    specs = []
+    for candidate in _git_ref_candidates(ref):
+        specs.extend(
+            (
+                candidate,
+                f"refs/tags/{candidate}",
+                f"refs/heads/{candidate}",
+            )
+        )
+    for spec in specs:
+        fetched = run_cmd(
+            [git_exe, "-C", str(inst), "fetch", "--depth", "1", "origin", spec]
+        )
+        if fetched.returncode != 0:
+            continue
+        checked = run_cmd(
+            [git_exe, "-C", str(inst), "checkout", "-f", "--detach", "FETCH_HEAD"]
+        )
+        if checked.returncode == 0:
+            return True
+    return False
+
+
 def get_tool_version(tool: Tool, config: dict | None = None) -> str | None:
     """Get currently installed version for a tool."""
     if tool.install_method == "manual":
@@ -120,6 +229,11 @@ def get_tool_version(tool: Tool, config: dict | None = None) -> str | None:
         ver = npm_show_version(tool.npm_package)
         if ver:
             return ver
+
+    if tool.install_method == "git" and config is not None:
+        git_ver = _git_tool_version(install_dir(config) / tool.name)
+        if git_ver:
+            return git_ver
 
     if tool.version_cmd or tool.binary_name:
         if not _tool_has_install_artifacts(tool, config):
@@ -313,14 +427,32 @@ def _finalize_python_repo_install(tool: Tool, inst: Path) -> None:
         )
 
 
-def _download_github_repo_zip(tool: Tool, inst: Path) -> None:
-    """Fetch repo default branch as a zip (no git required)."""
-    branch = get_github_default_branch(tool.github_repo or "")
-    url = f"https://codeload.github.com/{tool.github_repo}/zip/refs/heads/{branch}"
+def _download_github_repo_zip(tool: Tool, inst: Path, ref: str | None = None) -> None:
+    """Fetch a GitHub tag or branch as a zip (no git required)."""
+    if not tool.github_repo:
+        raise InstallError(f"No git repo defined for {tool.name}")
+    target = ref or get_github_default_branch(tool.github_repo)
+    urls: list[str] = []
+    for candidate in _git_ref_candidates(target):
+        urls.append(f"https://codeload.github.com/{tool.github_repo}/zip/refs/tags/{candidate}")
+        urls.append(f"https://codeload.github.com/{tool.github_repo}/zip/refs/heads/{candidate}")
+    last_error = "download failed"
     with tempfile.TemporaryDirectory() as tmp:
         tmp_path = Path(tmp)
         zip_path = tmp_path / "source.zip"
-        _download_file(url, zip_path)
+        downloaded = False
+        for url in urls:
+            try:
+                _download_file(url, zip_path)
+                downloaded = True
+                break
+            except requests.RequestException as e:
+                last_error = str(e)
+                continue
+        if not downloaded:
+            raise InstallError(
+                f"Could not download {tool.display_name} source for {target}: {last_error}"
+            )
         extract_root = tmp_path / "extract"
         extract_root.mkdir()
         with zipfile.ZipFile(zip_path) as zf:
@@ -335,10 +467,36 @@ def _download_github_repo_zip(tool: Tool, inst: Path) -> None:
             shutil.rmtree(inst)
         shutil.move(str(children[0]), str(inst))
     (inst / ".droidreaver-source").write_text("zip\n", encoding="utf-8")
+    _write_git_ref(inst, target)
 
 
-def _install_git_clone(tool: Tool, cfg: dict, *, force: bool = False) -> None:
-    """Clone or download a GitHub repo into install_dir and create a bin wrapper."""
+def _clone_github_ref(git_exe: str, tool: Tool, inst: Path, ref: str) -> None:
+    repo_url = f"https://github.com/{tool.github_repo}.git"
+    last_err = "git clone failed"
+    for candidate in _git_ref_candidates(ref):
+        if inst.exists():
+            shutil.rmtree(inst)
+        inst.parent.mkdir(parents=True, exist_ok=True)
+        result = run_cmd(
+            [git_exe, "clone", "--depth", "1", "--branch", candidate, repo_url, str(inst)]
+        )
+        if result.returncode == 0:
+            (inst / ".droidreaver-source").write_text("git\n", encoding="utf-8")
+            _write_git_ref(inst, candidate)
+            return
+        last_err = (result.stderr or result.stdout or "git clone failed").strip()
+    raise InstallError(f"git clone failed for {tool.name} ({ref}):\n{last_err}")
+
+
+def _install_git_clone(
+    tool: Tool,
+    cfg: dict,
+    *,
+    force: bool = False,
+    refresh: bool = False,
+    version: str | None = None,
+) -> None:
+    """Clone or download a GitHub repo at the Latest release tag (or default branch)."""
     if not tool.github_repo:
         raise InstallError(f"No git repo defined for {tool.name}")
 
@@ -353,31 +511,32 @@ def _install_git_clone(tool: Tool, cfg: dict, *, force: bool = False) -> None:
         or (inst / ".git").is_dir()
         or (inst / ".droidreaver-source").is_file()
     )
+    ref = _resolve_git_ref(tool, version)
 
     if (inst / ".git").is_dir() and git_exe and not force:
-        result = run_cmd([git_exe, "-C", str(inst), "pull", "--ff-only"])
-        if result.returncode != 0:
-            console.print("[yellow]git pull failed; continuing with existing clone[/]")
-        _finalize_python_repo_install(tool, inst)
-        return
+        if _git_fetch_and_checkout(git_exe, inst, ref):
+            _write_git_ref(inst, ref)
+            _finalize_python_repo_install(tool, inst)
+            return
+        if not refresh:
+            console.print(
+                f"[yellow]Could not fetch {ref}; continuing with existing {tool.display_name} clone[/]"
+            )
+            _finalize_python_repo_install(tool, inst)
+            return
+        console.print(f"[yellow]Fetch of {ref} failed — recloning {tool.display_name}[/]")
 
-    if already_installed and not force:
+    if already_installed and not force and not refresh:
         if tool.name == "medusa":
             _write_medusa_launcher(inst, bin_name)
         console.print(f"[dim]{tool.display_name} already installed at {inst}[/]")
         return
 
-    if inst.exists() and force:
+    if inst.exists() and (force or refresh):
         shutil.rmtree(inst)
 
     if git_exe:
-        inst.parent.mkdir(parents=True, exist_ok=True)
-        repo_url = f"https://github.com/{tool.github_repo}.git"
-        result = run_cmd([git_exe, "clone", "--depth", "1", repo_url, str(inst)])
-        if result.returncode != 0:
-            err = (result.stderr or result.stdout or "git clone failed").strip()
-            raise InstallError(f"git clone failed for {tool.name}:\n{err}")
-        (inst / ".droidreaver-source").write_text("git\n", encoding="utf-8")
+        _clone_github_ref(git_exe, tool, inst, ref)
     else:
         console.print(
             "[yellow]git not found — downloading GitHub source zip instead.[/]"
@@ -387,7 +546,7 @@ def _install_git_clone(tool: Tool, cfg: dict, *, force: bool = False) -> None:
             "https://git-scm.com/download/win[/]"
         )
         inst.parent.mkdir(parents=True, exist_ok=True)
-        _download_github_repo_zip(tool, inst)
+        _download_github_repo_zip(tool, inst, ref=ref)
 
     _finalize_python_repo_install(tool, inst)
 
@@ -488,6 +647,49 @@ def _download_file(
     return digest
 
 
+def _os_tokens(plat: str) -> tuple[str, ...]:
+    if plat == "windows":
+        return ("windows", "win64", "win32", "_win")
+    if plat == "macos":
+        return ("darwin", "macos", "osx", "mac")
+    return ("linux", "ubuntu")
+
+
+def _arch_tokens(arch: str) -> tuple[str, ...]:
+    if arch == "x64":
+        return ("x64", "amd64", "x86_64", "win64")
+    if arch == "arm64":
+        return ("arm64", "aarch64")
+    if arch == "x86":
+        return ("x86", "i386", "i686", "win32", "x32", "386")
+    return (arch,)
+
+
+def _arch_conflicts(arch: str, name: str) -> bool:
+    """True when the asset is clearly built for a different CPU."""
+    if arch == "x64" and any(tok in name for tok in ("arm64", "aarch64", "armv", "_x32", "i386", "386")):
+        return True
+    if arch == "arm64" and any(tok in name for tok in ("x64", "amd64", "x86_64", "_x32", "i386")):
+        return True
+    if arch == "x86" and any(tok in name for tok in ("arm64", "aarch64", "x64", "amd64", "x86_64")):
+        return True
+    return False
+
+
+def _asset_score(asset_name: str, plat: str, arch: str) -> int:
+    n = asset_name.lower()
+    archive = n.endswith((".zip", ".tar.gz", ".tgz", ".jar"))
+    if not archive:
+        return -1
+    if not any(tok in n for tok in _os_tokens(plat)):
+        return -1
+    if _arch_conflicts(arch, n):
+        return -1
+    if any(tok in n for tok in _arch_tokens(arch)):
+        return 3
+    return 1
+
+
 def _find_asset(release: dict, pattern: str | None, version: str) -> dict | None:
     assets = release.get("assets", [])
     if pattern:
@@ -495,22 +697,18 @@ def _find_asset(release: dict, pattern: str | None, version: str) -> dict | None
         for asset in assets:
             if asset["name"] == name or name in asset["name"]:
                 return asset
-    # Heuristic: first zip/tar for platform
     plat = detect_platform()
+    arch = detect_cpu_arch()
+    ranked: list[tuple[int, dict]] = []
     for asset in assets:
-        n = asset["name"].lower()
-        if plat == "windows" and n.endswith(".zip") and "win" in n:
-            return asset
-        if plat == "macos" and ("mac" in n or "darwin" in n) and (
-            n.endswith(".zip") or n.endswith(".tar.gz")
-        ):
-            return asset
-        if plat == "linux" and ("linux" in n or "ubuntu" in n) and (
-            n.endswith(".zip") or n.endswith(".tar.gz")
-        ):
-            return asset
+        score = _asset_score(str(asset.get("name", "")), plat, arch)
+        if score > 0:
+            ranked.append((score, asset))
+    if ranked:
+        ranked.sort(key=lambda item: item[0], reverse=True)
+        return ranked[0][1]
     for asset in assets:
-        n = asset["name"].lower()
+        n = str(asset.get("name", "")).lower()
         if n.endswith(".zip") or n.endswith(".tar.gz") or n.endswith(".jar"):
             return asset
     return None
@@ -877,7 +1075,7 @@ def install_tool(
         return
 
     if tool.install_method == "git":
-        _install_git_clone(tool, cfg, force=force)
+        _install_git_clone(tool, cfg, force=force, version=target_version)
         return
 
     if tool.install_method in ("apt", "brew"):
@@ -885,6 +1083,105 @@ def install_tool(
         return
 
     raise InstallError(f"Unsupported install method '{tool.install_method}' for {tool.name}")
+
+
+def _rmtree(path: Path) -> None:
+    if not path.exists():
+        return
+
+    def _retry(func, p, _exc) -> None:
+        os.chmod(p, stat.S_IWRITE)
+        func(p)
+
+    shutil.rmtree(path, onerror=_retry)
+
+
+def _managed_pythons(cfg: dict) -> list[str]:
+    from droidreaver.versions import frida_venv_path, get_active_frida_version
+
+    pythons: list[str] = []
+    ver = get_active_frida_version(cfg)
+    if ver:
+        venv = frida_venv_path(ver)
+        for rel in ("Scripts/python.exe", "bin/python"):
+            candidate = venv / rel
+            if candidate.is_file():
+                pythons.append(str(candidate))
+                break
+    pythons.append(sys.executable)
+    # Preserve order, drop dupes
+    seen: set[str] = set()
+    unique: list[str] = []
+    for py in pythons:
+        if py not in seen:
+            seen.add(py)
+            unique.append(py)
+    return unique
+
+
+@dataclass
+class UninstallResult:
+    tool: str
+    removed: list[str] = field(default_factory=list)
+    notes: list[str] = field(default_factory=list)
+
+
+def uninstall_tool(
+    tool_name: str,
+    cfg: dict,
+    *,
+    remove_venv: bool = True,
+) -> UninstallResult:
+    """Remove a DroidReaver-managed install. Does not apt/brew uninstall."""
+    tool = get_tool(tool_name)
+    result = UninstallResult(tool=tool.name)
+    tool_dir = install_dir(cfg) / tool.name
+    if tool_dir.exists():
+        _rmtree(tool_dir)
+        result.removed.append(str(tool_dir))
+
+    if tool.name == "frida" and remove_venv:
+        from droidreaver.versions import frida_venv_path, get_active_frida_version
+
+        ver = get_active_frida_version(cfg)
+        if ver:
+            venv = frida_venv_path(ver)
+            if venv.exists():
+                _rmtree(venv)
+                result.removed.append(str(venv))
+            result.notes.append(
+                f"Frida pin/active in config is unchanged ({ver}). "
+                "Clear with: droidreaver unpin frida"
+            )
+
+    if tool.install_method == "pip" and tool.pip_package and tool.name != "frida":
+        from droidreaver.utils import run_cmd
+
+        for py in _managed_pythons(cfg):
+            cmd = [py, "-m", "pip", "uninstall", "-y", tool.pip_package]
+            pip_result = run_cmd(cmd)
+            if pip_result.returncode == 0:
+                result.notes.append(f"pip uninstall {tool.pip_package} ({py})")
+
+    if tool.install_method in ("apt", "brew"):
+        result.notes.append(
+            f"System package not removed. Uninstall with apt/brew if you installed "
+            f"{tool.display_name} that way."
+        )
+    if tool.install_method == "manual":
+        result.notes.append(
+            f"{tool.display_name} is a manual install — nothing for DroidReaver to delete."
+        )
+    if tool.install_method == "npm" and tool.npm_package:
+        result.notes.append(
+            f"Global npm package not removed. Run: npm uninstall -g {tool.npm_package}"
+        )
+
+    if not result.removed and not result.notes:
+        result.notes.append(
+            f"No managed files found for {tool.display_name} under {install_dir(cfg)}."
+        )
+    return result
 
 
 def check_pin_group_conflict(
@@ -1014,14 +1311,18 @@ def update_tool(
 ) -> tuple[str | None, str | None]:
     """Update tool; returns (old_version, new_version)."""
     tool = get_tool(tool_name)
-    old = get_tool_version(tool)
+    old = get_tool_version(tool, cfg)
+    if tool.install_method == "git":
+        _install_git_clone(tool, cfg, force=force, refresh=True, version=None)
+        new = get_tool_version(tool, cfg)
+        return old, new
     latest = get_latest_version(tool)
     if not latest:
         raise InstallError(f"Could not determine latest version for {tool.name}")
     if old and compare_versions(old, latest) == 0:
         return old, old
     install_tool(tool_name, cfg, version=latest, force=force)
-    new = get_tool_version(tool) or latest
+    new = get_tool_version(tool, cfg) or latest
     return old, new
 
 

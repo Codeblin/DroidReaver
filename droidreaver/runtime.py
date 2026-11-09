@@ -24,6 +24,8 @@ RESERVED_COMMANDS = frozenset(
     {
         "status",
         "install",
+        "uninstall",
+        "remove",
         "update",
         "pin",
         "unpin",
@@ -106,15 +108,30 @@ def _tool_install_bin(config: dict, tool_name: str) -> Path:
     return install_dir(config) / tool_name / "bin"
 
 
+def _is_dir(path: Path) -> bool:
+    try:
+        return path.is_dir()
+    except OSError:
+        return False
+
+
+def _is_file(path: Path) -> bool:
+    try:
+        return path.is_file()
+    except OSError:
+        return False
+
+
 def _find_binary_in_dir(directory: Path, name: str) -> Path | None:
-    if not directory.is_dir():
+    """Look up a binary; skip PATH entries Windows will not let us stat."""
+    if not _is_dir(directory):
         return None
     candidates = [name]
     if detect_platform() == "windows":
         candidates.extend([f"{name}.exe", f"{name}.bat", f"{name}.cmd"])
     for c in candidates:
         p = directory / c
-        if p.is_file():
+        if _is_file(p):
             return p
     return None
 
@@ -126,9 +143,9 @@ def frida_venv_bin(config: dict) -> Path | None:
     venv = frida_venv_path(ver)
     if detect_platform() == "windows":
         scripts = venv / "Scripts"
-        return scripts if scripts.is_dir() else None
+        return scripts if _is_dir(scripts) else None
     bindir = venv / "bin"
-    return bindir if bindir.is_dir() else None
+    return bindir if _is_dir(bindir) else None
 
 
 def collect_tool_bin_paths(config: dict) -> list[Path]:
@@ -139,17 +156,21 @@ def collect_tool_bin_paths(config: dict) -> list[Path]:
         paths.append(venv_bin)
 
     inst = install_dir(config)
-    if inst.is_dir():
-        for entry in inst.iterdir():
-            if not entry.is_dir():
+    if _is_dir(inst):
+        try:
+            entries = list(inst.iterdir())
+        except OSError:
+            entries = []
+        for entry in entries:
+            if not _is_dir(entry):
                 continue
             bin_d = entry / "bin"
-            if bin_d.is_dir():
+            if _is_dir(bin_d):
                 paths.append(bin_d)
 
     # Global shim dir for future use
     shim = Path.home() / ".droidreaver" / "bin"
-    if shim.is_dir():
+    if _is_dir(shim):
         paths.append(shim)
 
     return paths

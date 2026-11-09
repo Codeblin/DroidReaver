@@ -8,7 +8,7 @@ import pytest
 
 from droidreaver import installer
 from droidreaver.config import META_KEY
-from droidreaver.installer import InstallError, install_tools
+from droidreaver.installer import InstallError, install_tools, uninstall_tool, update_tool
 from droidreaver.registry import Tool, get_tool
 
 
@@ -368,3 +368,138 @@ def test_install_tools_force_bypasses_satisfied_check(tmp_path, monkeypatch):
 
     install_tools(["adb"], cfg, force=True)
     assert len(calls) == 1
+
+
+def _gitleaks_release() -> dict:
+    names = [
+        "gitleaks_8.30.1_checksums.txt",
+        "gitleaks_8.30.1_darwin_arm64.tar.gz",
+        "gitleaks_8.30.1_linux_x64.tar.gz",
+        "gitleaks_8.30.1_windows_arm64.zip",
+        "gitleaks_8.30.1_windows_x32.zip",
+        "gitleaks_8.30.1_windows_x64.zip",
+    ]
+    return {"assets": [{"name": n} for n in names]}
+
+
+def test_find_asset_windows_x64_skips_arm64(monkeypatch):
+    monkeypatch.setattr(installer, "detect_platform", lambda: "windows")
+    monkeypatch.setattr(installer, "detect_cpu_arch", lambda: "x64")
+    asset = installer._find_asset(_gitleaks_release(), None, "8.30.1")
+    assert asset is not None
+    assert asset["name"] == "gitleaks_8.30.1_windows_x64.zip"
+
+
+def test_uninstall_removes_managed_tool_dir(tmp_path):
+    cfg = _cfg(tmp_path)
+    tool_dir = tmp_path / ".droidreaver" / "tools" / "gitleaks"
+    (tool_dir / "extracted").mkdir(parents=True)
+    (tool_dir / "extracted" / "gitleaks.exe").write_bytes(b"x")
+    result = uninstall_tool("gitleaks", cfg)
+    assert not tool_dir.exists()
+    assert any("gitleaks" in path for path in result.removed)
+
+
+def test_find_asset_linux_x64(monkeypatch):
+    monkeypatch.setattr(installer, "detect_platform", lambda: "linux")
+    monkeypatch.setattr(installer, "detect_cpu_arch", lambda: "x64")
+    asset = installer._find_asset(_gitleaks_release(), None, "8.30.1")
+    assert asset is not None
+    assert asset["name"] == "gitleaks_8.30.1_linux_x64.tar.gz"
+
+
+def test_medusa_version_from_git_describe(tmp_path, monkeypatch):
+    cfg = _cfg(tmp_path)
+    medusa = tmp_path / ".droidreaver" / "tools" / "medusa"
+    (medusa / ".git").mkdir(parents=True)
+    (medusa / "medusa.py").write_text("print('medusa')\n", encoding="utf-8")
+
+    monkeypatch.setattr(installer, "find_git", lambda: "git")
+
+    def fake_run(cmd, **kwargs):
+        class R:
+            returncode = 0
+            stdout = ""
+            stderr = ""
+
+        if cmd[:3] == ["git", "-C", str(medusa)] and "describe" in cmd:
+            R.stdout = "v1.2.3-4-gabcdef\n"
+            return R()
+        R.returncode = 1
+        return R()
+
+    monkeypatch.setattr(installer, "run_cmd", fake_run)
+    assert installer.get_tool_version(get_tool("medusa"), cfg) == "v1.2.3-4-gabcdef"
+
+
+def test_update_tool_git_fetches_release_tag(tmp_path, monkeypatch):
+    cfg = _cfg(tmp_path)
+    medusa = tmp_path / ".droidreaver" / "tools" / "medusa"
+    (medusa / ".git").mkdir(parents=True)
+    (medusa / "medusa.py").write_text("print('medusa')\n", encoding="utf-8")
+    cmds: list[list[str]] = []
+
+    monkeypatch.setattr(installer, "find_git", lambda: "git")
+    monkeypatch.setattr(installer, "_resolve_git_ref", lambda *a, **k: "v3.9.6")
+    monkeypatch.setattr(installer, "_finalize_python_repo_install", lambda *a, **k: None)
+
+    def fake_run(cmd, **kwargs):
+        cmds.append(list(cmd))
+
+        class R:
+            returncode = 0
+            stdout = ""
+            stderr = ""
+
+        return R()
+
+    monkeypatch.setattr(installer, "run_cmd", fake_run)
+    old, new = update_tool("medusa", cfg)
+    assert any("fetch" in c and "v3.9.6" in c for c in cmds)
+    assert any("checkout" in c and "FETCH_HEAD" in c for c in cmds)
+    assert not any("pull" in c for c in cmds)
+    assert (medusa / ".droidreaver-ref").read_text(encoding="utf-8").strip() == "v3.9.6"
+    assert new == "3.9.6"
+    assert old != "3.9.6"
+
+
+def test_git_tool_version_uses_recorded_release_tag(tmp_path):
+    cfg = _cfg(tmp_path)
+    medusa = tmp_path / ".droidreaver" / "tools" / "medusa"
+    medusa.mkdir(parents=True)
+    (medusa / "medusa.py").write_text("print('medusa')\n", encoding="utf-8")
+    (medusa / ".droidreaver-ref").write_text("v3.9.6\n", encoding="utf-8")
+    assert installer.get_tool_version(get_tool("medusa"), cfg) == "3.9.6"
+
+
+def test_update_tool_zip_redownloads_medusa(tmp_path, monkeypatch):
+    cfg = _cfg(tmp_path)
+    medusa = tmp_path / ".droidreaver" / "tools" / "medusa"
+    medusa.mkdir(parents=True)
+    (medusa / ".droidreaver-source").write_text("zip\n", encoding="utf-8")
+    (medusa / "medusa.py").write_text("old\n", encoding="utf-8")
+
+    monkeypatch.setattr(installer, "find_git", lambda: None)
+
+    def fake_zip(tool, inst, ref=None):
+        inst.mkdir(parents=True, exist_ok=True)
+        (inst / ".droidreaver-source").write_text("zip\n", encoding="utf-8")
+        (inst / "medusa.py").write_text("new\n", encoding="utf-8")
+        if ref:
+            (inst / ".droidreaver-ref").write_text(f"{ref}\n", encoding="utf-8")
+
+    monkeypatch.setattr(installer, "_download_github_repo_zip", fake_zip)
+    monkeypatch.setattr(installer, "_resolve_git_ref", lambda *a, **k: "v3.9.6")
+    monkeypatch.setattr(installer, "_finalize_python_repo_install", lambda *a, **k: None)
+    update_tool("medusa", cfg)
+    assert (medusa / "medusa.py").read_text(encoding="utf-8") == "new\n"
+
+
+def test_medusa_version_from_source_marker_without_git(tmp_path, monkeypatch):
+    cfg = _cfg(tmp_path)
+    medusa = tmp_path / ".droidreaver" / "tools" / "medusa"
+    medusa.mkdir(parents=True)
+    (medusa / "medusa.py").write_text("print('medusa')\n", encoding="utf-8")
+    (medusa / ".droidreaver-source").write_text("zip\n", encoding="utf-8")
+    monkeypatch.setattr(installer, "find_git", lambda: None)
+    assert installer.get_tool_version(get_tool("medusa"), cfg) == "zip"
