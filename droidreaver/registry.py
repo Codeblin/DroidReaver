@@ -154,7 +154,6 @@ _register(
         binary_name="medusa",
         version_cmd="medusa --version",
         depends_on=("frida",),
-        pin_with=_frida_pins(),
         description="Dynamic analysis and hooking framework",
         notes=(
             "Cloned from GitHub + pip requirements. Git optional (zip fallback). "

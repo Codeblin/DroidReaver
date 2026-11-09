@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import platform
 import re
 import shutil
 import subprocess
@@ -396,6 +397,18 @@ def detect_platform() -> str:
     if sys.platform == "darwin":
         return "macos"
     return "linux"
+
+
+def detect_cpu_arch() -> str:
+    """Host CPU family used to pick GitHub release assets (x64 / arm64 / x86)."""
+    machine = platform.machine().lower()
+    if machine in {"amd64", "x86_64", "x64"}:
+        return "x64"
+    if machine in {"arm64", "aarch64"}:
+        return "arm64"
+    if machine in {"x86", "i386", "i686", "i586"}:
+        return "x86"
+    return machine or "x64"
 
 
 def detect_system_package_manager() -> str | None:

@@ -1,7 +1,11 @@
 """Tests for tool runtime dispatch."""
 
+from pathlib import Path
+from unittest.mock import patch
+
 from droidreaver.runtime import (
     RESERVED_COMMANDS,
+    _find_binary_in_dir,
     lookup_invocation,
     list_runnable_tools,
 )
@@ -54,3 +58,9 @@ def test_objection_invocation():
     inv = lookup_invocation("objection")
     assert inv is not None
     assert inv.tool.name == "objection"
+
+
+def test_find_binary_skips_inaccessible_path():
+    denied = Path(r"C:\WINDOWS\system32\config\systemprofile\AppData\Local\Microsoft\WindowsApps")
+    with patch.object(Path, "is_dir", side_effect=PermissionError("Access is denied")):
+        assert _find_binary_in_dir(denied, "tcpdump") is None

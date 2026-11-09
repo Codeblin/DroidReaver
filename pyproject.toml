@@ -51,10 +51,15 @@ Changelog = "https://github.com/Codeblin/droidreaver/blob/main/CHANGELOG.md"
 [tool.coverage.run]
 source = ["droidreaver"]
 branch = true
+relative_files = true
+omit = ["*/tests/*"]
 
 [tool.coverage.report]
 show_missing = true
 skip_covered = false
+
+[tool.coverage.xml]
+output = "coverage.xml"
 
 [tool.setuptools.packages.find]
 where = ["."]
@@ -66,3 +71,6 @@ droidreaver = ["../droidreaver.toml.default", "scripts/*.js", "banner_art.txt"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+markers = [
+    "arsenal_live: probe real arsenal binaries from ~/.droidreaver/tools",
+]

@@ -13,19 +13,21 @@ jobs:
   tests:
     name: Tests on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+      pull-requests: write
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
 
     steps:
+      # PR head (not the merge commit) so Cobertura line numbers match the diff.
       - name: Check out repository
-        shell: bash
-        run: |
-          git init .
-          git remote add origin "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY.git"
-          git fetch --depth=1 origin "$GITHUB_SHA"
-          git checkout --force FETCH_HEAD
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
 
       - name: Install package
         shell: bash
@@ -33,7 +35,64 @@ jobs:
 
       - name: Run tests
         shell: bash
-        run: python -m pytest --cov=droidreaver --cov-report=term-missing --cov-report=xml
+        run: python -m pytest --cov=droidreaver --cov-report=term-missing --cov-report=xml --cov-report=html
+
+      - name: Write coverage summary
+        if: always() && matrix.os == 'ubuntu-latest'
+        shell: bash
+        run: |
+          python .github/scripts/coverage_comment.py coverage.xml -o coverage-comment.md
+          cat coverage-comment.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload coverage artifact
+        if: always() && matrix.os == 'ubuntu-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-ubuntu
+          path: |
+            coverage.xml
+            coverage-comment.md
+            htmlcov/
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Comment coverage on PR
+        if: >
+          matrix.os == 'ubuntu-latest' &&
+          github.event_name == 'pull_request' &&
+          github.event.pull_request.head.repo.full_name == github.repository
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = 'coverage-comment.md';
+            if (!fs.existsSync(path)) {
+              core.warning('coverage-comment.md missing; skip PR comment');
+              return;
+            }
+            const body = fs.readFileSync(path, 'utf8');
+            const marker = '<!-- droidreaver-coverage -->';
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const existing = comments.find((c) => c.body && c.body.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
 
   android-tools-smoke:
     name: Android tools smoke test
@@ -241,3 +300,31 @@ jobs:
           droidreaver --no-banner device list
           droidreaver --no-banner device ready
           droidreaver frida-ps -U
+
+  arsenal-smoke:
+    name: Arsenal install smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Install package
+        shell: bash
+        run: python -m pip install -e ".[dev]"
+
+      - name: Cache DroidReaver tool downloads
+        uses: actions/cache@v4
+        with:
+          path: ~/.droidreaver/tools
+          key: arsenal-tools-${{ runner.os }}-${{ hashFiles('droidreaver/registry.py', 'droidreaver/installer.py') }}
+          restore-keys: |
+            arsenal-tools-${{ runner.os }}-
+
+      - name: Install smoke tools and probe
+        shell: bash
+        env:
+          DROIDREAVER_ARSENAL_INSTALL: gitleaks,adb
+        run: python -m pytest tests/test_arsenal.py -m arsenal_live -rs --tb=short

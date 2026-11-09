@@ -14,8 +14,20 @@ python -m pytest
 Run coverage locally:
 
 ```bash
-python -m pytest --cov=droidreaver --cov-report=term-missing
+python -m pytest --cov=droidreaver --cov-report=term-missing --cov-report=xml --cov-report=html
 ```
+
+CI (ubuntu) uploads `coverage.xml` + `htmlcov/` as the **coverage-ubuntu** Actions artifact and posts a sticky coverage comment on pull requests.
+
+Live arsenal probes use `~/.droidreaver/tools` (gitignored). They skip when a tool is missing. To install a small set first:
+
+```bash
+# Windows CMD
+set DROIDREAVER_ARSENAL_INSTALL=gitleaks,adb
+.venv\Scripts\python.exe -m pytest tests/test_arsenal.py -m arsenal_live -rs
+```
+
+`DROIDREAVER_ARSENAL_INSTALL=all` installs github-release and direct-download tools only (not apt/brew/GUI). Do not commit `.droidreaver/`.
 
 ## Development Expectations
 

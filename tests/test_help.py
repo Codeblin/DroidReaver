@@ -35,6 +35,20 @@ def test_no_args_shows_banner_and_help_hint():
     assert "Get started" not in result.output
 
 
+def test_close_typo_resolves_to_apktool():
+    from unittest.mock import patch
+
+    runner = CliRunner()
+    with patch("droidreaver.cli.ensure_config"), patch(
+        "droidreaver.cli.load_config", return_value={}
+    ), patch("droidreaver.cli.run_invocation", return_value=0) as run:
+        result = runner.invoke(main, ["apktook", "d", "app-debug.apk"])
+    assert result.exit_code == 0
+    assert "apktool" in result.output
+    assert run.call_args[0][0] == "apktool"
+    assert run.call_args[0][1] == ["d", "app-debug.apk"]
+
+
 def test_run_passes_flags_to_tool():
     """Flags after the tool name must reach the underlying CLI (not Click)."""
     runner = CliRunner()

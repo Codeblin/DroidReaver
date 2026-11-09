@@ -46,6 +46,7 @@ from droidreaver.installer import (
     get_tool_status,
     get_tool_version,
     install_tools,
+    uninstall_tool,
     warm_version_cache,
     sync_pin_group,
     update_pin_group,
@@ -326,6 +327,71 @@ def install_cmd(tool: str | None, install_all: bool, ver: str | None, force: boo
     except InstallError as e:
         console.print(f"[red]Error:[/] {e}")
         sys.exit(1)
+
+
+def _registry_tool_name(name: str) -> str:
+    try:
+        return get_tool(name).name
+    except KeyError:
+        inv = lookup_invocation(name)
+        if inv is not None:
+            return inv.tool.name
+        raise
+
+
+@main.command("uninstall")
+@click.argument("tool")
+@click.option("-y", "--yes", "assume_yes", is_flag=True, help="Do not prompt")
+@click.option(
+    "--keep-venv",
+    is_flag=True,
+    help="When uninstalling frida, leave the isolated venv on disk",
+)
+def uninstall_cmd(tool: str, assume_yes: bool, keep_venv: bool) -> None:
+    """Remove a tool DroidReaver installed (managed dir / Frida venv)."""
+    print_banner(console, compact=True)
+    cfg = _load_cfg()
+    try:
+        name = _registry_tool_name(tool)
+        t = get_tool(name)
+    except KeyError:
+        console.print(f"[red]Unknown tool:[/] {tool}")
+        console.print("[dim]See:[/] [cyan]droidreaver arsenal[/]")
+        sys.exit(1)
+
+    from droidreaver.config import install_dir
+
+    target = install_dir(cfg) / name
+    console.print(
+        f"Remove [bold]{t.display_name}[/] ([cyan]{name}[/]) from "
+        f"[dim]{target}[/]"
+    )
+    if not assume_yes and not click.confirm("Continue?", default=False):
+        console.print("[dim]Cancelled.[/]")
+        sys.exit(0)
+    try:
+        result = uninstall_tool(name, cfg, remove_venv=not keep_venv)
+    except InstallError as e:
+        console.print(f"[red]Error:[/] {e}")
+        sys.exit(1)
+    if result.removed:
+        console.print("[green]Removed:[/]")
+        for path in result.removed:
+            console.print(f"  • {path}")
+    for note in result.notes:
+        console.print(f"[dim]{note}[/]")
+    if not result.removed:
+        sys.exit(1)
+
+
+@main.command("remove", hidden=True)
+@click.argument("tool")
+@click.option("-y", "--yes", "assume_yes", is_flag=True, help="Do not prompt")
+@click.option("--keep-venv", is_flag=True)
+@click.pass_context
+def remove_cmd(ctx: click.Context, tool: str, assume_yes: bool, keep_venv: bool) -> None:
+    """Alias for uninstall."""
+    ctx.invoke(uninstall_cmd, tool=tool, assume_yes=assume_yes, keep_venv=keep_venv)
 
 
 @main.command("update")
@@ -650,8 +716,8 @@ def arsenal_cmd() -> None:
     console.print(table)
     console.print(
         f"\n[dim]{len(invocations)} dispatchers · "
-        "invoke directly: [cyan]droidreaver frida --version[/]  "
-        "or: [cyan]droidreaver run objection explore[/]"
+        "invoke: [cyan]droidreaver frida --version[/]  ·  "
+        "remove: [cyan]droidreaver uninstall gitleaks -y[/]"
     )
 
 
@@ -1592,7 +1658,7 @@ def _register_tool_runners() -> None:
             continue
         seen.add(inv.name)
 
-        def make_tool_command(invocation_name: str, display: str):
+        def make_tool_command(invocation_name: str, help_text: str):
             @click.command(
                 name=invocation_name,
                 add_help_option=False,
@@ -1600,7 +1666,7 @@ def _register_tool_runners() -> None:
                     "ignore_unknown_options": True,
                     "allow_extra_args": True,
                 },
-                help=inv.tool.description or f"Run {inv.tool.display_name}",
+                help=help_text,
             )
             @click.pass_context
             def _tool_runner(ctx: click.Context) -> None:
@@ -1619,7 +1685,10 @@ def _register_tool_runners() -> None:
 
             return _tool_runner
 
-        cmd = make_tool_command(inv.name, inv.tool.display_name)
+        cmd = make_tool_command(
+            inv.name,
+            inv.tool.description or f"Run {inv.tool.display_name}",
+        )
         main.add_command(cmd)
 
 
