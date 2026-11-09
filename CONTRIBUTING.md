@@ -17,7 +17,7 @@ Run coverage locally:
 python -m pytest --cov=droidreaver --cov-report=term-missing --cov-report=xml --cov-report=html
 ```
 
-CI (ubuntu) uploads `coverage.xml` + `htmlcov/` as the **coverage-ubuntu** Actions artifact and posts a sticky coverage comment on pull requests.
+CI (ubuntu) posts a sticky coverage comment on pull requests and writes the same summary to the Actions job summary. Marketplace actions (`actions/checkout`, `upload-artifact`, …) are not used — org policy allows only Codeblin-owned actions.
 
 Live arsenal probes use `~/.droidreaver/tools` (gitignored). They skip when a tool is missing. To install a small set first:
 

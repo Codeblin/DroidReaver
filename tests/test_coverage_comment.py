@@ -30,3 +30,4 @@ def test_format_coverage_markdown(tmp_path):
     assert "80.0%" in md
     assert "droidreaver/cli.py" in md
     assert "40.0%" in md
+    assert "job summary" in md
